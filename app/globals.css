@@ -1,0 +1,162 @@
+@import 'tailwindcss';
+
+/*
+  Semantic design tokens. Components must use these (via Tailwind utilities such
+  as bg-card or text-muted-foreground) and never raw colour values.
+  Dark is the default (:root). Light is a designed theme under .light.
+*/
+:root {
+  color-scheme: dark;
+
+  --background: oklch(0.165 0.012 205);
+  --surface: oklch(0.2 0.014 205);
+  --card: oklch(0.225 0.015 205);
+  --elevated: oklch(0.27 0.017 205);
+  --foreground: oklch(0.96 0.005 100);
+  --muted-foreground: oklch(0.73 0.015 205);
+  --border: oklch(0.33 0.016 205);
+  --border-strong: oklch(0.42 0.018 205);
+
+  --primary: oklch(0.8 0.12 178);
+  --primary-foreground: oklch(0.2 0.035 190);
+  --secondary: oklch(0.29 0.02 205);
+  --secondary-foreground: oklch(0.96 0.005 100);
+  --accent: oklch(0.83 0.14 82);
+  --accent-foreground: oklch(0.22 0.04 70);
+
+  --success: oklch(0.78 0.15 152);
+  --warning: oklch(0.8 0.15 62);
+  --danger: oklch(0.72 0.17 25);
+  --on-status: oklch(0.2 0.03 200);
+
+  --ring: oklch(0.8 0.12 178);
+  --selection: oklch(0.8 0.12 178 / 0.3);
+  --overlay: oklch(0.1 0.01 205 / 0.7);
+  --shadow-color: oklch(0.05 0.01 205 / 0.5);
+}
+
+.light {
+  color-scheme: light;
+
+  --background: oklch(0.972 0.007 95);
+  --surface: oklch(0.95 0.009 95);
+  --card: oklch(0.995 0.003 95);
+  --elevated: oklch(1 0 0);
+  --foreground: oklch(0.22 0.02 220);
+  --muted-foreground: oklch(0.48 0.02 220);
+  --border: oklch(0.89 0.011 95);
+  --border-strong: oklch(0.79 0.014 95);
+
+  --primary: oklch(0.48 0.095 190);
+  --primary-foreground: oklch(0.99 0.005 95);
+  --secondary: oklch(0.92 0.012 95);
+  --secondary-foreground: oklch(0.25 0.02 220);
+  --accent: oklch(0.72 0.15 75);
+  --accent-foreground: oklch(0.22 0.04 70);
+
+  --success: oklch(0.52 0.13 152);
+  --warning: oklch(0.6 0.15 55);
+  --danger: oklch(0.54 0.19 25);
+  --on-status: oklch(0.99 0.005 95);
+
+  --ring: oklch(0.48 0.095 190);
+  --selection: oklch(0.48 0.095 190 / 0.2);
+  --overlay: oklch(0.25 0.02 220 / 0.45);
+  --shadow-color: oklch(0.3 0.03 220 / 0.14);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-elevated: var(--elevated);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-on-status: var(--on-status);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-latin), var(--font-arabic), system-ui, sans-serif;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --shadow-panel: 0 1px 2px var(--shadow-color), 0 8px 24px -12px var(--shadow-color);
+  --shadow-float: 0 12px 40px -8px var(--shadow-color);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html[lang='ar'] {
+    --font-sans: var(--font-arabic), var(--font-latin), system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  button,
+  [role='button'],
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
