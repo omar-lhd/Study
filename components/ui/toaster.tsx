@@ -12,6 +12,7 @@ export function Toaster() {
       dir={dir}
       position="top-center"
       toastOptions={{
+        style: { fontFamily: 'var(--font-sans)' },
         classNames: {
           toast: '!bg-elevated !text-foreground !border-border !shadow-float',
         },
