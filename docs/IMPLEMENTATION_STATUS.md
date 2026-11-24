@@ -33,5 +33,5 @@ Correct branch; existing work preserved; dev server starts; build, typecheck, li
 - Package A's original workspace snapshot was empty and lacked `.git`; the current canonical repository and Phase 1 branch are now verified in GitHub. Historical Package A constraints remain recorded here, but do not describe the current Phase 1 branch.
 - Greeting and date use the fixed `Africa/Cairo` zone (`config/app.ts`) until profiles carry a time zone.
 - Theme is dark/light only; no "system" option yet.
-- The Study / Night Desk brand direction and matching SVG mark are implemented on the Phase 1 branch and await visual review. A fresh preview build is currently blocked by Vercel's build-rate limit; the previous READY deployment predates these UI changes.
+- The Study / Night Desk brand direction and matching SVG mark are implemented on the Phase 1 branch and await visual review. A fresh preview build is currently blocked by Vercel's deployment API quota (100 deployments/day; retry window reported as 24 hours). The previous READY deployment predates these UI changes. An intermediate build surfaced duplicate locale keys and an unsupported Button size; those source issues were corrected in later commits, but the corrected head has not been built yet.
 - The unit/e2e test setup is not configured.
