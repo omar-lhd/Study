@@ -168,6 +168,52 @@ export async function cloudStorageUpload(storagePath: string, file: Blob): Promi
   }
 }
 
+export async function cloudStorageUploadWithProgress(
+  storagePath: string,
+  file: Blob,
+  onProgress: (percent: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const { url, key } = config()
+  const session = await getValidSession()
+  const encodedPath = storagePath.split('/').map(encodeURIComponent).join('/')
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const abort = () => xhr.abort()
+
+    if (signal?.aborted) {
+      reject(new DOMException('Attachment upload cancelled', 'AbortError'))
+      return
+    }
+
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100)
+        resolve()
+        return
+      }
+      let data: Record<string, unknown> = {}
+      try { data = JSON.parse(xhr.responseText) as Record<string, unknown> } catch { /* use status fallback */ }
+      const message = typeof data.message === 'string' ? data.message : typeof data.error === 'string' ? data.error : `Attachment upload failed (${xhr.status})`
+      reject(new Error(message))
+    }
+    xhr.onerror = () => reject(new Error('Attachment upload failed due to a network error'))
+    xhr.onabort = () => reject(new DOMException('Attachment upload cancelled', 'AbortError'))
+    signal?.addEventListener('abort', abort, { once: true })
+    xhr.onloadend = () => signal?.removeEventListener('abort', abort)
+    xhr.open('POST', `${url}/storage/v1/object/chat-media/${encodedPath}`)
+    xhr.setRequestHeader('apikey', key)
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    xhr.setRequestHeader('x-upsert', 'false')
+    xhr.send(file)
+  })
+}
+
 export async function cloudStorageSignedUrl(storagePath: string, expiresIn = 3600): Promise<string> {
   const { url, key } = config()
   const session = await getValidSession()

@@ -1,14 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
-import { ArrowLeft, MessageCircle, Plus, Search, Send, Users, RefreshCw, CircleUserRound, BookOpen, Paperclip, Mic, Square, Bell, BellOff, Pin } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Plus, Search, Send, Users, RefreshCw, CircleUserRound, BookOpen, Paperclip, Mic, Square, Bell, BellOff, Pin, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Textarea } from '@/components/ui/field'
 import { EmptyState } from '@/components/ui/states'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageUpload, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
+import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
 
 type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; bio: string | null }
 type Conversation = { id: string; kind: 'direct' | 'group'; title: string | null; avatar_url: string | null; last_message_at: string | null; created_at: string }
@@ -43,10 +43,19 @@ export function CloudChatsExperience() {
   const [messageAttachments, setMessageAttachments] = useState<Record<string, CloudAttachment[]>>({})
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null)
+  const [voiceDurationMs, setVoiceDurationMs] = useState(0)
   const [recording, setRecording] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadKind, setUploadKind] = useState<'message' | 'story' | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
+  const cancelRecordingRef = useRef(false)
+  const recordingStartedAtRef = useRef(0)
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const uploadAbortRef = useRef<AbortController | null>(null)
+  const voicePreviewRef = useRef<HTMLAudioElement | null>(null)
   const [stories, setStories] = useState<Story[]>([])
   const [seenStoryIds, setSeenStoryIds] = useState<string[]>([])
   const [activeStory, setActiveStory] = useState<Story | null>(null)
@@ -88,6 +97,18 @@ export function CloudChatsExperience() {
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([])
 
 
+
+  useEffect(() => {
+    const audio = voicePreviewRef.current
+    if (!audio || !voiceBlob) return
+    const url = URL.createObjectURL(voiceBlob)
+    audio.src = url
+    return () => {
+      audio.pause()
+      audio.removeAttribute('src')
+      URL.revokeObjectURL(url)
+    }
+  }, [voiceBlob])
 
   const loadData = useCallback(async () => {
     if (!session) return
@@ -288,17 +309,33 @@ export function CloudChatsExperience() {
       const recorder = new MediaRecorder(stream)
       recorderRef.current = recorder
       chunksRef.current = []
+      cancelRecordingRef.current = false
+      recordingStartedAtRef.current = Date.now()
+      setRecordingSeconds(0)
       recorder.ondataavailable = event => { if (event.data.size) chunksRef.current.push(event.data) }
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-        setVoiceBlob(blob)
-        setSelectedFile(null)
+        const cancelled = cancelRecordingRef.current
+        cancelRecordingRef.current = false
+        if (recordingTimerRef.current) {
+          window.clearInterval(recordingTimerRef.current)
+          recordingTimerRef.current = null
+        }
+        if (!cancelled) {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+          setVoiceBlob(blob)
+          setVoiceDurationMs(Date.now() - recordingStartedAtRef.current)
+          setSelectedFile(null)
+        } else {
+          setVoiceBlob(null)
+          setVoiceDurationMs(0)
+        }
         setRecording(false)
         stream.getTracks().forEach(track => track.stop())
         streamRef.current = null
         recorderRef.current = null
       }
       recorder.start()
+      recordingTimerRef.current = window.setInterval(() => setRecordingSeconds(Math.floor((Date.now() - recordingStartedAtRef.current) / 1000)), 1000)
       setRecording(true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.startVoice'))
@@ -309,13 +346,27 @@ export function CloudChatsExperience() {
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
   }
 
+  function cancelVoiceRecording() {
+    if (recorderRef.current?.state === 'recording') {
+      cancelRecordingRef.current = true
+      chunksRef.current = []
+      recorderRef.current.stop()
+    }
+  }
+
+  function cancelUpload() {
+    uploadAbortRef.current?.abort()
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!activeId || !session || (!messageText.trim() && !selectedFile && !voiceBlob)) return
+    if (selectedFile && !(selectedFile.type.startsWith('image/') || ['application/pdf', 'text/plain'].includes(selectedFile.type))) { setError(t('cloud.messages.fileTypeInvalid')); return }
+    const media = voiceBlob ?? selectedFile
+    if (media && media.size > 50 * 1024 * 1024) { setError(t('cloud.messages.fileTooLarge')); return }
     setBusy(true); setError('')
     let uploadedPath: string | null = null
     let messageId: string | null = null
-    const media = voiceBlob ?? selectedFile
     const mediaName = voiceBlob ? `voice-note-${Date.now()}.webm` : selectedFile?.name ?? ''
     const mediaType = voiceBlob ? 'voice' : selectedFile?.type.startsWith('image/') ? 'image' : 'file'
     try {
@@ -329,21 +380,25 @@ export function CloudChatsExperience() {
       if (media) {
         const safeName = mediaName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || 'attachment'
         uploadedPath = `conversations/${activeId}/${session.user.id}/${messageId}-${safeName}`
-        await cloudStorageUpload(uploadedPath, media)
+        const controller = new AbortController()
+        uploadAbortRef.current = controller
+        setUploadKind('message')
+        setUploadProgress(0)
+        await cloudStorageUploadWithProgress(uploadedPath, media, progress => setUploadProgress(progress), controller.signal)
         await cloudRest<void>('message_attachments', {
           method: 'POST',
-          body: JSON.stringify({ message_id: messageId, conversation_id: activeId, storage_path: uploadedPath, file_name: mediaName, mime_type: media.type || 'application/octet-stream', file_size: media.size, duration_ms: null }),
+          body: JSON.stringify({ message_id: messageId, conversation_id: activeId, storage_path: uploadedPath, file_name: mediaName, mime_type: media.type || 'application/octet-stream', file_size: media.size, duration_ms: voiceBlob ? voiceDurationMs : null }),
         })
       }
-      setMessageText(''); setReplyToMessageId(null); setSelectedFile(null); setVoiceBlob(null)
+      setMessageText(''); setReplyToMessageId(null); setSelectedFile(null); setVoiceBlob(null); setVoiceDurationMs(0)
       realtimeRef.current?.broadcast('typing', { user_id: session.user.id, typing: false })
       await loadMessages()
       await loadData()
     } catch (cause) {
       if (uploadedPath) await cloudStorageRemove(uploadedPath).catch(() => {})
       if (messageId) await cloudRest<void>(`messages?id=eq.${messageId}`, { method: 'DELETE' }).catch(() => {})
-      setError(cause instanceof Error ? cause.message : t('cloud.error.sendMessage'))
-    } finally { setBusy(false) }
+      setError(cause instanceof Error && cause.name === 'AbortError' ? t('cloud.messages.uploadCancelled') : cause instanceof Error ? cause.message : t('cloud.error.sendMessage'))
+    } finally { uploadAbortRef.current = null; setUploadProgress(null); setUploadKind(null); setBusy(false) }
   }
 
   async function editMessage(messageId: string) {
@@ -553,7 +608,11 @@ export function CloudChatsExperience() {
       if (storyImage) {
         const safeName = storyImage.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100) || 'story-image'
         storagePath = `stories/${session.user.id}/${storyId}/${safeName}`
-        await cloudStorageUpload(storagePath, storyImage)
+        const controller = new AbortController()
+        uploadAbortRef.current = controller
+        setUploadKind('story')
+        setUploadProgress(0)
+        await cloudStorageUploadWithProgress(storagePath, storyImage, progress => setUploadProgress(progress), controller.signal)
       }
       await cloudRest<string>('rpc/publish_story', {
         method: 'POST',
@@ -564,8 +623,8 @@ export function CloudChatsExperience() {
       setStatus(t('cloud.stories.published'))
     } catch (cause) {
       if (storagePath) await cloudStorageRemove(storagePath).catch(() => {})
-      setError(cause instanceof Error ? cause.message : t('cloud.error.publishStory'))
-    } finally { setBusy(false) }
+      setError(cause instanceof Error && cause.name === 'AbortError' ? t('cloud.messages.uploadCancelled') : cause instanceof Error ? cause.message : t('cloud.error.publishStory'))
+    } finally { uploadAbortRef.current = null; setUploadProgress(null); setUploadKind(null); setBusy(false) }
   }
 
   if (!session) return <EmptyState icon={<Users />} title={t('cloud.auth.signInRequiredTitle')} description={t('cloud.auth.signInRequiredDescription')} />
@@ -587,7 +646,7 @@ export function CloudChatsExperience() {
 
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-semibold">{t('cloud.stories.title')}</h3><p className="text-xs text-muted-foreground">{t('cloud.stories.publishedSubtitle')}</p></div><Button size="sm" variant="outline" onClick={() => setStoryComposer(value => !value)}><Plus data-icon="inline-start" />{t('cloud.stories.add')}</Button></div>
-        {storyComposer ? <form onSubmit={publishTextStory} className="mb-3 grid gap-2"><Label htmlFor="cloud-story">{t('cloud.stories.textCaption')}</Label><Textarea id="cloud-story" value={storyText} onChange={e => setStoryText(e.target.value)} maxLength={500} placeholder={t('cloud.stories.placeholder')}/><Label htmlFor="cloud-story-image">{t('cloud.stories.image')}</Label><input id="cloud-story-image" type="file" accept="image/*" onChange={e => setStoryImage(e.target.files?.[0] ?? null)} className="text-xs"/>{storyImage ? <p className="text-xs text-muted-foreground">{storyImage.name} · <button type="button" onClick={() => setStoryImage(null)}>{t('cloud.stories.remove')}</button></p> : null}<fieldset className="grid gap-2 rounded-lg border border-border p-3"><legend className="px-1 text-xs font-semibold">{t('cloud.stories.audience')}</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'community'} onChange={() => setStoryAudience('community')}/>{t('cloud.stories.community')}</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'selected-members'} onChange={() => setStoryAudience('selected-members')}/>{t('cloud.stories.selected')}</label>{storyAudience === 'selected-members' ? <div className="max-h-32 overflow-y-auto">{filteredMembers.map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={storyAudienceMemberIds.includes(member.id)} onChange={e => setStoryAudienceMemberIds(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span>{member.display_name}</span></label>)}</div> : null}</fieldset><Button type="submit" disabled={busy || (!storyText.trim() && !storyImage) || (storyAudience === 'selected-members' && !storyAudienceMemberIds.length)}>{t('cloud.stories.publish')}</Button></form> : null}
+        {storyComposer ? <form onSubmit={publishTextStory} className="mb-3 grid gap-2"><Label htmlFor="cloud-story">{t('cloud.stories.textCaption')}</Label><Textarea id="cloud-story" value={storyText} onChange={e => setStoryText(e.target.value)} maxLength={500} placeholder={t('cloud.stories.placeholder')}/><Label htmlFor="cloud-story-image">{t('cloud.stories.image')}</Label><input id="cloud-story-image" type="file" accept="image/*" onChange={e => setStoryImage(e.target.files?.[0] ?? null)} className="text-xs"/>{storyImage ? <p className="text-xs text-muted-foreground">{storyImage.name} · <button type="button" onClick={() => setStoryImage(null)}>{t('cloud.stories.remove')}</button></p> : null}{uploadProgress !== null && uploadKind === 'story' ? <div className="flex items-center gap-2 rounded-xl bg-secondary/50 p-2"><progress value={uploadProgress} max={100} aria-label={t('cloud.messages.uploadProgress')} className="h-2 min-w-0 flex-1"/><span className="text-xs tabular-nums">{uploadProgress}%</span><Button type="button" size="sm" variant="ghost" onClick={cancelUpload}>{t('cloud.messages.cancelUpload')}</Button></div> : null}<fieldset className="grid gap-2 rounded-lg border border-border p-3"><legend className="px-1 text-xs font-semibold">{t('cloud.stories.audience')}</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'community'} onChange={() => setStoryAudience('community')}/>{t('cloud.stories.community')}</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'selected-members'} onChange={() => setStoryAudience('selected-members')}/>{t('cloud.stories.selected')}</label>{storyAudience === 'selected-members' ? <div className="max-h-32 overflow-y-auto">{filteredMembers.map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={storyAudienceMemberIds.includes(member.id)} onChange={e => setStoryAudienceMemberIds(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span>{member.display_name}</span></label>)}</div> : null}</fieldset><Button type="submit" disabled={busy || (!storyText.trim() && !storyImage) || (storyAudience === 'selected-members' && !storyAudienceMemberIds.length)}>{t('cloud.stories.publish')}</Button></form> : null}
         {stories.length ? <div className="flex gap-4 overflow-x-auto pb-2 pt-1">{stories.map(story => <button key={story.id} type="button" aria-label={`${members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')} · ${seenStoryIds.includes(story.id) ? t('cloud.stories.seen') : t('cloud.stories.unseen')}`} onClick={() => void openStory(story)} className="group flex w-[4.5rem] shrink-0 flex-col items-center gap-2 text-center"><span className={`flex size-[4.35rem] items-center justify-center rounded-full p-[3px] shadow-panel transition-transform group-hover:scale-[1.03] ${seenStoryIds.includes(story.id) ? 'bg-border' : 'bg-gradient-to-br from-primary via-primary/75 to-accent'}`}><span className="flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-card bg-secondary">{story.signed_url ? <img src={story.signed_url} alt="" className="size-full object-cover" loading="lazy"/> : <span className="flex size-full items-center justify-center bg-primary/10 text-primary"><CircleUserRound className="size-7"/></span>}</span></span><span className="w-full truncate text-xs font-medium">{members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')}</span></button>)}</div> : <p className="text-sm text-muted-foreground">{t('cloud.stories.noStories')}</p>}
       </section>
 
@@ -615,7 +674,7 @@ export function CloudChatsExperience() {
               <button type="button" className="rounded px-1.5 py-0.5 text-[11px] hover:bg-background/60" onClick={() => { setForwardingMessageId(forwardingMessageId === message.id ? null : message.id); setForwardTargetId('') }}>{t('cloud.messages.forward')}</button>
             </div>
             {forwardingMessageId === message.id ? <div className="mt-2 flex gap-2"><select aria-label="Forward to conversation" value={forwardTargetId} onChange={e => setForwardTargetId(e.target.value)} className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs"><option value="">{t('cloud.conversations.chooseOption')}</option>{conversations.filter(item => item.id !== activeId).map(item => <option key={item.id} value={item.id}>{item.title ?? peerNames[item.id] ?? t('cloud.conversations.private')}</option>)}</select><Button size="sm" onClick={() => void forwardMessage(message)} disabled={!forwardTargetId}>{t('cloud.messages.forward')}</Button></div> : null}
-          </article>)}{!messages.length ? <p className="text-sm text-muted-foreground">{t('cloud.messages.empty')}</p> : null}</div>{typingUserId ? <p className="px-4 py-2 text-xs text-muted-foreground">{members.find(item => item.id === typingUserId)?.display_name ?? t('cloud.members.member')} {t('cloud.messages.typing')}</p> : null}<form onSubmit={sendMessage} className="flex flex-col gap-2 border-t border-border p-3">{replyToMessageId ? <div className="flex items-center justify-between rounded-md bg-secondary px-2 py-1 text-xs"><span className="truncate">{t('chats.message.replying')}: {messages.find(item => item.id === replyToMessageId)?.content ?? 'message'}</span><button type="button" onClick={() => setReplyToMessageId(null)}>{t('cloud.messages.cancel')}</button></div> : null}{selectedFile ? <p className="text-xs text-muted-foreground">{t('cloud.messages.attachmentLabel')}: {selectedFile.name} · <button type="button" onClick={() => setSelectedFile(null)}>{t('cloud.stories.remove')}</button></p> : null}{voiceBlob ? <p className="text-xs text-muted-foreground">{t('cloud.messages.voiceReadyLabel')} · <button type="button" onClick={() => setVoiceBlob(null)}>{t('cloud.stories.remove')}</button></p> : null}<div className="flex gap-2"><input type="file" className="hidden" id="cloud-chat-file" accept="image/*,application/pdf,text/plain" onChange={e => { setSelectedFile(e.target.files?.[0] ?? null); setVoiceBlob(null) }}/><Button type="button" size="sm" className="size-9 p-0" variant="outline" aria-label={t('cloud.messages.attach')} onClick={() => document.getElementById('cloud-chat-file')?.click()}><Paperclip/></Button><Button type="button" size="sm" className="size-9 p-0" variant={recording ? 'danger' : 'outline'} aria-label={recording ? t('cloud.messages.stopVoice') : t('cloud.messages.voice')} onClick={() => recording ? stopVoiceRecording() : void startVoiceRecording()}>{recording ? <Square/> : <Mic/>}</Button><Input value={messageText} onChange={e => { setMessageText(e.target.value); realtimeRef.current?.broadcast('typing', { user_id: session.user.id, typing: true }) }} placeholder={t('cloud.messages.write')} aria-label={t('cloud.messages.write')} /><Button type="submit" disabled={busy || (!messageText.trim() && !selectedFile && !voiceBlob)}><Send data-icon="inline-start"/>{t('cloud.messages.send')}</Button></div></form></> : <div className="flex flex-1 items-center justify-center p-6 text-center"><EmptyState icon={<BookOpen/>} title={t('cloud.conversations.choose')} description={t('cloud.conversations.chooseDescription')}/></div>}
+          </article>)}{!messages.length ? <p className="text-sm text-muted-foreground">{t('cloud.messages.empty')}</p> : null}</div>{typingUserId ? <p className="px-4 py-2 text-xs text-muted-foreground">{members.find(item => item.id === typingUserId)?.display_name ?? t('cloud.members.member')} {t('cloud.messages.typing')}</p> : null}<form onSubmit={sendMessage} className="flex flex-col gap-2 border-t border-border p-3">{replyToMessageId ? <div className="flex items-center justify-between rounded-md bg-secondary px-2 py-1 text-xs"><span className="truncate">{t('chats.message.replying')}: {messages.find(item => item.id === replyToMessageId)?.content ?? 'message'}</span><button type="button" onClick={() => setReplyToMessageId(null)}>{t('cloud.messages.cancel')}</button></div> : null}{selectedFile ? <p className="text-xs text-muted-foreground">{t('cloud.messages.attachmentLabel')}: {selectedFile.name} · <button type="button" onClick={() => setSelectedFile(null)}>{t('cloud.stories.remove')}</button></p> : null}{voiceBlob ? <div className="grid gap-1 rounded-xl bg-secondary/50 p-2"><p className="text-xs text-muted-foreground">{t('cloud.messages.voiceReadyLabel')} · {Math.floor(voiceDurationMs / 60000)}:{String(Math.floor(voiceDurationMs / 1000) % 60).padStart(2, '0')} · <button type="button" onClick={() => { setVoiceBlob(null); setVoiceDurationMs(0) }}>{t('cloud.stories.remove')}</button></p><audio ref={voicePreviewRef} controls className="w-full" aria-label={t('cloud.messages.voicePreview')}/></div> : null}{uploadProgress !== null && uploadKind === 'message' ? <div className="flex items-center gap-2 rounded-xl bg-secondary/50 p-2"><progress value={uploadProgress} max={100} aria-label={t('cloud.messages.uploadProgress')} className="h-2 min-w-0 flex-1"/><span className="text-xs tabular-nums">{uploadProgress}%</span><Button type="button" size="sm" variant="ghost" onClick={cancelUpload}>{t('cloud.messages.cancelUpload')}</Button></div> : null}{recording ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><span role="status">{t('cloud.messages.recording')} · {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}</span><Button type="button" size="sm" variant="ghost" className="ms-auto" onClick={cancelVoiceRecording}><X data-icon="inline-start"/>{t('cloud.messages.cancelRecording')}</Button></div> : null}<div className="flex gap-2"><input type="file" className="hidden" id="cloud-chat-file" accept="image/*,application/pdf,text/plain" onChange={e => { setSelectedFile(e.target.files?.[0] ?? null); setVoiceBlob(null); setVoiceDurationMs(0) }}/><Button type="button" size="sm" className="size-9 p-0" variant="outline" aria-label={t('cloud.messages.attach')} onClick={() => document.getElementById('cloud-chat-file')?.click()}><Paperclip/></Button><Button type="button" size="sm" className="size-9 p-0" variant={recording ? 'danger' : 'outline'} aria-label={recording ? t('cloud.messages.stopVoice') : t('cloud.messages.voice')} onClick={() => recording ? stopVoiceRecording() : void startVoiceRecording()}>{recording ? <Square/> : <Mic/>}</Button><Input value={messageText} onChange={e => { setMessageText(e.target.value); realtimeRef.current?.broadcast('typing', { user_id: session.user.id, typing: true }) }} placeholder={t('cloud.messages.write')} aria-label={t('cloud.messages.write')} /><Button type="submit" disabled={busy || (!messageText.trim() && !selectedFile && !voiceBlob)}><Send data-icon="inline-start"/>{t('cloud.messages.send')}</Button></div></form></> : <div className="flex flex-1 items-center justify-center p-6 text-center"><EmptyState icon={<BookOpen/>} title={t('cloud.conversations.choose')} description={t('cloud.conversations.chooseDescription')}/></div>}
         </section>
       </div>
       <Dialog open={messageSearchOpen} onOpenChange={setMessageSearchOpen}>
