@@ -296,58 +296,19 @@ export function CloudChatsExperience() {
     }
   }, [activeId, session, t])
 
-  const syncOfflineOutbox = useCallback(async () => {
-    if (!session || !navigator.onLine) return
-    const pending = await readPendingChatMessages().catch(() => [])
-    if (!pending.length) return
-    for (const item of pending) {
-      try {
-        try {
-          await cloudRest<{ id: string }[]>('messages?select=id', {
-            method: 'POST',
-            headers: { Prefer: 'return=representation' },
-            body: JSON.stringify({ id: item.id, conversation_id: item.conversation_id, sender_id: session.user.id, content: item.content, message_type: item.attachment ? (item.attachment.mime_type.startsWith('image/') ? 'image' : item.attachment.mime_type.startsWith('audio/') ? 'voice' : 'file') : 'text', reply_to_message_id: item.reply_to_message_id }),
-          })
-        } catch (insertError) {
-          const existing = await cloudRest<{ id: string }[]>(`messages?select=id&id=eq.${item.id}&sender_id=eq.${session.user.id}&limit=1`)
-          if (!existing.length) throw insertError
-        }
-
-        if (item.attachment) {
-          const existingAttachments = await cloudRest<{ id: string }[]>(`message_attachments?select=id&message_id=eq.${item.id}&limit=1`)
-          if (!existingAttachments.length) {
-            const safeName = item.attachment.file_name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || 'attachment'
-            const storagePath = `conversations/${item.conversation_id}/${session.user.id}/${item.id}-${safeName}`
-            let alreadyUploaded = false
-            try { await cloudStorageSignedUrl(storagePath, 60); alreadyUploaded = true } catch { /* upload below if object is absent */ }
-            if (!alreadyUploaded) await cloudStorageUpload(storagePath, item.attachment.blob)
-            await cloudRest<void>('message_attachments', {
-              method: 'POST',
-              body: JSON.stringify({ message_id: item.id, conversation_id: item.conversation_id, storage_path: storagePath, file_name: item.attachment.file_name, mime_type: item.attachment.mime_type, file_size: item.attachment.file_size, duration_ms: item.attachment.duration_ms }),
-            })
-          }
-        }
-        await removePendingChatMessage(item.id)
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : t('cloud.error.sendMessage'))
-        break
-      }
-    }
-    await loadMessages()
-    await loadData()
-  }, [session, loadMessages, loadData, t])
-
-  useEffect(() => {
-    if (!session) return
-    const onOnline = () => { void syncOfflineOutbox() }
-    window.addEventListener('online', onOnline)
-    if (navigator.onLine) void syncOfflineOutbox()
-    return () => window.removeEventListener('online', onOnline)
-  }, [session, syncOfflineOutbox])
-
   // Fetch messages when the selected conversation changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadMessages() }, [loadMessages])
+
+  useEffect(() => {
+    const refreshChats = () => { void loadData(); void loadMessages() }
+    window.addEventListener('online', refreshChats)
+    window.addEventListener('study:offline-outbox-synced', refreshChats)
+    return () => {
+      window.removeEventListener('online', refreshChats)
+      window.removeEventListener('study:offline-outbox-synced', refreshChats)
+    }
+  }, [loadData, loadMessages])
 
   useEffect(() => {
     if (!jumpToMessageId) return
