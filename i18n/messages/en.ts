@@ -1,9 +1,9 @@
 import type { MessageKey } from './ar'
 
 export const en: Record<MessageKey, string> = {
-  'app.name': 'Private Study Community',
+  'app.name': 'Study',
   'app.nameShort': 'Study',
-  'app.workingName': 'Working name',
+  'app.workingName': 'Make room to learn together',
   'app.skipToContent': 'Skip to content',
 
   'nav.home': 'Today',
@@ -65,6 +65,15 @@ export const en: Record<MessageKey, string> = {
   'home.goals.empty': 'Set a weekly goal and follow it from here.',
 
   'chats.title': 'Chats',
+  'chats.welcome.kicker': 'Your study circle',
+  'chats.welcome.title': 'Studying feels better together.',
+  'chats.welcome.description': 'A calm place for your study friends: ask, share an idea, catch up with your circle, and keep moving together without the noise.',
+  'chats.welcome.privateNote': 'Access is limited to approved members. Your conversations and files stay private.',
+  'chats.welcome.artCaption': 'Ideas meet. A study session begins.',
+  'chats.welcome.membersTitle': 'Your study circle',
+  'chats.welcome.membersDescription': 'Connect with approved community members and start a private or group conversation.',
+  'chats.welcome.studyTitle': 'Keep your goal in sight',
+  'chats.welcome.studyDescription': 'Share a small win or a study question, and let connection support your focus.',
   'chats.description': 'A quiet place for study conversations and shared moments.',
   'chats.eyebrow': 'Stay in the loop',
   'chats.list.title': 'Conversations',
@@ -351,6 +360,13 @@ export const en: Record<MessageKey, string> = {
   'settings.appearance.persisted': 'Appearance is saved on this device.',
 
 
+  'cloud.auth.join': 'Join community',
+  'cloud.auth.sending': 'Sending…',
+  'cloud.auth.verifying': 'Verifying…',
+  'cloud.auth.sendCode': 'Send sign-in code',
+  'cloud.auth.verifyCode': 'Verify code',
+  'cloud.auth.codePlaceholder': 'Enter the code from your email',
+  'cloud.auth.changeEmail': 'Change email',
   'cloud.auth.title': 'Sign in to private community chats',
   'cloud.auth.description': 'Use the email of an existing approved community account. Signing in does not grant membership by itself.',
   'cloud.auth.email': 'Email address',
