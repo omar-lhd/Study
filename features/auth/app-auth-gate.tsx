@@ -29,6 +29,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => setHydrated(true), [])
 
@@ -58,6 +59,12 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           cloudRest<Membership[]>(`group_members?select=group_id,user_id&user_id=eq.${userId}&limit=1`),
         ])
         if (!active) return
+        const approved = memberships.length > 0
+        if (!approved) {
+          void writeOfflineSnapshot(`auth-access:${userId}`, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
+          setStage('activation')
+          return
+        }
         const profile = profiles[0]
         if (!profile || !profile.display_name?.trim() || profile.display_name === 'New member' || !profile.username?.trim()) {
           setDisplayName(profile?.display_name === 'New member' ? '' : profile?.display_name ?? '')
@@ -66,9 +73,8 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           setStage('profile')
           return
         }
-        const approved = memberships.length > 0
-        void writeOfflineSnapshot(`auth-access:${userId}`, { approved, profileReady: true, checkedAt: Date.now() }).catch(() => {})
-        setStage(approved ? 'ready' : 'activation')
+        void writeOfflineSnapshot(`auth-access:${userId}`, { approved: true, profileReady: true, checkedAt: Date.now() }).catch(() => {})
+        setStage('ready')
       } catch (cause) {
         if (!active) return
         if (!navigator.onLine) {
@@ -87,7 +93,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     }
     void loadAccess()
     return () => { active = false }
-  }, [hydrated, userId, ar])
+  }, [hydrated, userId, ar, retryCount])
 
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -147,6 +153,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       void writeOfflineSnapshot(`auth-access:${session.user.id}`, { approved, profileReady: true, checkedAt: Date.now() }).catch(() => {})
       setStage(approved ? 'ready' : 'activation')
     } catch (cause) {
+      setStage('profile')
       const message = cause instanceof Error ? cause.message : ''
       setError(/unique|duplicate/i.test(message)
         ? (ar ? 'اسم المستخدم ده مستخدم بالفعل. اختار اسم تاني.' : 'That username is already taken. Choose another.')
@@ -206,6 +213,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary"><ShieldCheck className="size-6"/></div>
           <h2 className="text-xl font-bold">{ar ? 'حسابك اتجهّز — باقي اعتماد العضوية' : 'Account ready — membership approval pending'}</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'تم التحقق من بريدك وحفظ ملفك الشخصي. التطبيق خاص بالأعضاء المعتمدين فقط؛ شاشة وأكواد التفعيل هتتربط لما نظام التفعيل يتنفذ. لحد وقتها لازم مسؤول المجتمع يضيف حسابك كعضو معتمد. مش هنفتح التطبيق أو المحادثات قبل الاعتماد.' : 'Your email is verified and profile is saved. Study is private; activation-code redemption will be connected when that system is implemented. Until then, an administrator must add your account as an approved member. The app and chats stay locked until approval.'}</p>
+          {error ? <Button type="button" variant="outline" className="mt-4 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }}>{ar ? 'إعادة التحقق' : 'Retry access check'}</Button> : null}
           <div className="mt-5 grid gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4"><Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label><Input id="study-activation-code" disabled placeholder={ar ? 'هيتفعّل بعد تنفيذ نظام الأكواد' : 'Enabled when activation codes are implemented'} dir="ltr"/><Button type="button" disabled className="w-full">{ar ? 'تفعيل العضوية — قريبًا' : 'Activate membership — coming later'}</Button><p className="text-xs leading-5 text-muted-foreground">{ar ? 'مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية. حاليًا العضو المعتمد لازم يتضاف من مسؤول المجتمع.' : 'No fake code or membership bypass. For now, an administrator must approve members.'}</p></div>
         </> : null}
 
