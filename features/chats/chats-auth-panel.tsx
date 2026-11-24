@@ -25,6 +25,20 @@ export function ChatsAuthPanel() {
     return () => window.removeEventListener('study:open-auth', show)
   }, [])
 
+  function requestError(cause: unknown) {
+    const message = cause instanceof Error ? cause.message.toLowerCase() : ''
+    if (message.includes('rate') || message.includes('too many')) return t('cloud.auth.error.rateLimited')
+    if (message.includes('invalid email') || message.includes('email address')) return t('cloud.auth.error.invalidEmail')
+    return t('cloud.error.requestCode')
+  }
+
+  function verificationError(cause: unknown) {
+    const message = cause instanceof Error ? cause.message.toLowerCase() : ''
+    if (message.includes('expired')) return t('cloud.auth.error.expiredCode')
+    if (message.includes('invalid') || message.includes('otp') || message.includes('token')) return t('cloud.auth.error.invalidCode')
+    return t('cloud.error.verifyCode')
+  }
+
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setBusy(true); setError(''); setStatus('')
@@ -33,7 +47,17 @@ export function ChatsAuthPanel() {
       setSent(true)
       setStatus(t('cloud.auth.otpRequested'))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('cloud.error.requestCode'))
+      setError(requestError(cause))
+    } finally { setBusy(false) }
+  }
+
+  async function resendCode() {
+    setBusy(true); setError(''); setStatus('')
+    try {
+      await requestEmailOtp(email)
+      setStatus(t('cloud.auth.otpRequested'))
+    } catch (cause) {
+      setError(requestError(cause))
     } finally { setBusy(false) }
   }
 
@@ -45,7 +69,7 @@ export function ChatsAuthPanel() {
       setOpen(false)
       setStatus(t('cloud.auth.signedInStatus'))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('cloud.error.verifyCode'))
+      setError(verificationError(cause))
     } finally { setBusy(false) }
   }
 
@@ -79,9 +103,9 @@ export function ChatsAuthPanel() {
             </form>
           ) : (
             <form onSubmit={verifyCode} className="mt-5 grid gap-3">
-              <div className="grid gap-1.5"><Label htmlFor="psc-chat-code">{t('cloud.auth.code')}</Label><Input id="psc-chat-code" inputMode="numeric" autoComplete="one-time-code" dir="ltr" value={code} onChange={e => setCode(e.target.value)} required minLength={6} placeholder={t('cloud.auth.codePlaceholder')} /></div>
+              <div className="grid gap-1.5"><Label htmlFor="psc-chat-code">{t('cloud.auth.code')}</Label><Input id="psc-chat-code" inputMode="numeric" autoComplete="one-time-code" dir="ltr" value={code} onChange={e => setCode(e.target.value.replace(/\\D/g, '').slice(0, 6))} required minLength={6} maxLength={6} pattern="[0-9]{6}" placeholder={t('cloud.auth.codePlaceholder')} /></div>
               <Button type="submit" className="w-full rounded-xl" disabled={busy || !code.trim()}><KeyRound data-icon="inline-start" />{busy ? t('cloud.auth.verifying') : t('cloud.auth.verifyCode')}</Button>
-              <Button type="button" variant="ghost" onClick={() => { setSent(false); setCode(''); setStatus(''); setError('') }}>{t('cloud.auth.changeEmail')}</Button>
+              <div className="flex flex-wrap items-center justify-between gap-2"><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void resendCode()}>{t('cloud.auth.sendCode')}</Button><Button type="button" variant="ghost" onClick={() => { setSent(false); setCode(''); setStatus(''); setError('') }}>{t('cloud.auth.changeEmail')}</Button></div>
             </form>
           )}
           {status ? <p role="status" className="mt-3 text-sm text-muted-foreground">{status}</p> : null}
