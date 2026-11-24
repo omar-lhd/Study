@@ -47,6 +47,7 @@ export function CloudChatsExperience() {
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
   const [stories, setStories] = useState<Story[]>([])
+  const [seenStoryIds, setSeenStoryIds] = useState<string[]>([])
   const [activeStory, setActiveStory] = useState<Story | null>(null)
   const [storyViewers, setStoryViewers] = useState<Array<{ id: string; display_name: string; viewed_at: string }>>([])
   const [notifications, setNotifications] = useState<CloudNotification[]>([])
@@ -57,6 +58,11 @@ export function CloudChatsExperience() {
   const realtimeRef = useRef<ReturnType<typeof subscribeConversationRealtime> | null>(null)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [activeId, setActiveId] = useState('')
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false)
+  const [messageSearchQuery, setMessageSearchQuery] = useState('')
+  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>([])
+  const [messageSearchBusy, setMessageSearchBusy] = useState(false)
+  const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null)
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false)
   const [directoryOpen, setDirectoryOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
@@ -131,6 +137,14 @@ export function CloudChatsExperience() {
       const storyRows = await cloudRest<Story[]>(`stories?select=id,owner_id,story_type,text_content,storage_path,audience,created_at,expires_at&status=eq.published&expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`)
       const storiesWithUrls = await Promise.all(storyRows.map(async story => story.storage_path ? { ...story, signed_url: await cloudStorageSignedUrl(story.storage_path) } : story))
       setStories(storiesWithUrls)
+      if (storyRows.length) {
+        try {
+          const seenRows = await cloudRest<{ story_id: string }[]>(`story_views?select=story_id&viewer_id=eq.${session.user.id}&story_id=${apiFilter(storyRows.map(story => story.id))}`)
+          setSeenStoryIds(seenRows.map(row => row.story_id))
+        } catch {
+          setSeenStoryIds([])
+        }
+      } else setSeenStoryIds([])
       const notificationRows = await cloudRest<CloudNotification[]>(`in_app_notifications?select=id,actor_id,notification_type,payload,read_at,created_at&recipient_id=eq.${session.user.id}&order=created_at.desc&limit=30`)
       setNotifications(notificationRows)
     } catch (cause) {
@@ -189,6 +203,15 @@ export function CloudChatsExperience() {
   // Fetch messages when the selected conversation changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadMessages() }, [loadMessages])
+
+  useEffect(() => {
+    if (!jumpToMessageId) return
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(`cloud-message-${jumpToMessageId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 0)
+    const clearTimer = window.setTimeout(() => setJumpToMessageId(null), 1600)
+    return () => { window.clearTimeout(scrollTimer); window.clearTimeout(clearTimer) }
+  }, [messages, jumpToMessageId])
   useEffect(() => {
     if (!session) return
     const timer = window.setInterval(() => { void loadData(); void loadMessages() }, 30000)
@@ -452,6 +475,7 @@ export function CloudChatsExperience() {
   async function markStorySeen(storyId: string) {
     try {
       await cloudRest<void>('rpc/mark_story_view', { method: 'POST', body: JSON.stringify({ p_story_id: storyId }) })
+      setSeenStoryIds(current => current.includes(storyId) ? current : [...current, storyId])
       setStatus(t('cloud.stories.viewRecorded'))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.storyView'))
@@ -470,6 +494,21 @@ export function CloudChatsExperience() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.loadStoryViews'))
     }
+  }
+
+  async function searchMessages(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const query = messageSearchQuery.trim().slice(0, 100)
+    if (!query) return
+    setMessageSearchBusy(true)
+    setError('')
+    try {
+      const results = await cloudRest<Message[]>(`messages?select=id,conversation_id,sender_id,content,created_at,reply_to_message_id,deleted_for_everyone,edited_at,pinned_at&content=ilike.%25${encodeURIComponent(query)}%25&deleted_for_everyone=eq.false&order=created_at.desc&limit=40`)
+      setMessageSearchResults(results)
+    } catch (cause) {
+      setMessageSearchResults([])
+      setError(cause instanceof Error ? cause.message : t('cloud.error.loadMessages'))
+    } finally { setMessageSearchBusy(false) }
   }
 
   async function toggleStoryReaction(storyId: string) {
@@ -516,12 +555,13 @@ export function CloudChatsExperience() {
   if (!session) return <EmptyState icon={<Users />} title={t('cloud.auth.signInRequiredTitle')} description={t('cloud.auth.signInRequiredDescription')} />
 
   const activeConversation = conversations.find(item => item.id === activeId)
+  const activeStoryIndex = activeStory ? stories.findIndex(story => story.id === activeStory.id) : -1
 
   return (
     <div className="grid gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card/70 px-4 py-3 sm:px-5">
         <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{t('chats.eyebrow')}</p><h2 className="mt-1 text-xl font-bold tracking-tight">{t('chats.title')}</h2><p className="text-xs text-muted-foreground">{profile?.display_name ?? session.user.email}</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => setNotificationsOpen(value => !value)} aria-label={t('cloud.notifications.title')}><Bell data-icon="inline-start"/>{notifications.filter(item => !item.read_at).length || ''}</Button><Button variant="outline" onClick={() => setProfileOpen(value => !value)} disabled={busy}>{t('cloud.profile.edit')}</Button><Button variant="outline" onClick={() => { void loadData(); void loadMessages() }} disabled={busy}><RefreshCw data-icon="inline-start" />{t('cloud.refresh')}</Button></div>
+        <div className="flex gap-2"><Button variant="outline" onClick={() => setMessageSearchOpen(true)} aria-label={t('cloud.search.title')}><Search data-icon="inline-start"/>{t('cloud.search.title')}</Button><Button variant="outline" onClick={() => setNotificationsOpen(value => !value)} aria-label={t('cloud.notifications.title')}><Bell data-icon="inline-start"/>{notifications.filter(item => !item.read_at).length || ''}</Button><Button variant="outline" onClick={() => setProfileOpen(value => !value)} disabled={busy}>{t('cloud.profile.edit')}</Button><Button variant="outline" onClick={() => { void loadData(); void loadMessages() }} disabled={busy}><RefreshCw data-icon="inline-start" />{t('cloud.refresh')}</Button></div>
       </header>
       {notificationsOpen ? <section className="rounded-xl border border-border bg-card p-3"><h3 className="mb-2 font-semibold">{t('cloud.notifications.title')}</h3>{notifications.length ? <div className="max-h-64 overflow-y-auto">{notifications.map(notification => <button key={notification.id} type="button" onClick={() => void openNotification(notification)} className={`mb-1 block w-full rounded-lg p-2 text-start text-sm hover:bg-secondary ${notification.read_at ? 'opacity-70' : 'bg-primary/5'}`}><span className="block font-medium">{notificationLabel(notification)}</span><span className="mt-1 block text-xs text-muted-foreground">{members.find(item => item.id === notification.actor_id)?.display_name ?? t('cloud.members.member')} · {new Date(notification.created_at).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US')}</span></button>)}</div> : <p className="text-sm text-muted-foreground">{t('cloud.notifications.empty')}</p>}</section> : null}
       {profileOpen ? <form onSubmit={saveProfile} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-3"><div className="grid gap-1"><Label htmlFor="profile-display-name">{t('cloud.profile.displayName')}</Label><Input id="profile-display-name" value={profileName} onChange={e => setProfileName(e.target.value)} required maxLength={80}/></div><div className="grid gap-1"><Label htmlFor="profile-username">{t('cloud.profile.username')}</Label><Input id="profile-username" value={profileUsername} onChange={e => setProfileUsername(e.target.value)} minLength={3} maxLength={24} placeholder={t('cloud.profile.username')}/></div><div className="grid gap-1"><Label htmlFor="profile-bio">{t('cloud.profile.bio')}</Label><Input id="profile-bio" value={profileBio} onChange={e => setProfileBio(e.target.value)} maxLength={160} placeholder={t('cloud.profile.bio')}/></div><Button type="submit" disabled={busy || !profileName.trim()}>{t('cloud.profile.save')}</Button></form> : null}
@@ -532,7 +572,7 @@ export function CloudChatsExperience() {
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-semibold">{t('cloud.stories.title')}</h3><p className="text-xs text-muted-foreground">{t('cloud.stories.publishedSubtitle')}</p></div><Button size="sm" variant="outline" onClick={() => setStoryComposer(value => !value)}><Plus data-icon="inline-start" />{t('cloud.stories.add')}</Button></div>
         {storyComposer ? <form onSubmit={publishTextStory} className="mb-3 grid gap-2"><Label htmlFor="cloud-story">{t('cloud.stories.textCaption')}</Label><Textarea id="cloud-story" value={storyText} onChange={e => setStoryText(e.target.value)} maxLength={500} placeholder={t('cloud.stories.placeholder')}/><Label htmlFor="cloud-story-image">{t('cloud.stories.image')}</Label><input id="cloud-story-image" type="file" accept="image/*" onChange={e => setStoryImage(e.target.files?.[0] ?? null)} className="text-xs"/>{storyImage ? <p className="text-xs text-muted-foreground">{storyImage.name} · <button type="button" onClick={() => setStoryImage(null)}>{t('cloud.stories.remove')}</button></p> : null}<fieldset className="grid gap-2 rounded-lg border border-border p-3"><legend className="px-1 text-xs font-semibold">{t('cloud.stories.audience')}</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'community'} onChange={() => setStoryAudience('community')}/>{t('cloud.stories.community')}</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'selected-members'} onChange={() => setStoryAudience('selected-members')}/>{t('cloud.stories.selected')}</label>{storyAudience === 'selected-members' ? <div className="max-h-32 overflow-y-auto">{filteredMembers.map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={storyAudienceMemberIds.includes(member.id)} onChange={e => setStoryAudienceMemberIds(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span>{member.display_name}</span></label>)}</div> : null}</fieldset><Button type="submit" disabled={busy || (!storyText.trim() && !storyImage) || (storyAudience === 'selected-members' && !storyAudienceMemberIds.length)}>{t('cloud.stories.publish')}</Button></form> : null}
-        {stories.length ? <div className="flex gap-4 overflow-x-auto pb-2 pt-1">{stories.map(story => <button key={story.id} type="button" onClick={() => void openStory(story)} className="group flex w-[4.5rem] shrink-0 flex-col items-center gap-2 text-center"><span className="flex size-[4.35rem] items-center justify-center rounded-full bg-gradient-to-br from-primary via-primary/75 to-accent p-[3px] shadow-panel transition-transform group-hover:scale-[1.03]"><span className="flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-card bg-secondary">{story.signed_url ? <img src={story.signed_url} alt="" className="size-full object-cover" loading="lazy"/> : <span className="flex size-full items-center justify-center bg-primary/10 text-primary"><CircleUserRound className="size-7"/></span>}</span></span><span className="w-full truncate text-xs font-medium">{members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')}</span></button>)}</div> : <p className="text-sm text-muted-foreground">{t('cloud.stories.noStories')}</p>}
+        {stories.length ? <div className="flex gap-4 overflow-x-auto pb-2 pt-1">{stories.map(story => <button key={story.id} type="button" aria-label={`${members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')} · ${seenStoryIds.includes(story.id) ? t('cloud.stories.seen') : t('cloud.stories.unseen')}`} onClick={() => void openStory(story)} className="group flex w-[4.5rem] shrink-0 flex-col items-center gap-2 text-center"><span className={`flex size-[4.35rem] items-center justify-center rounded-full p-[3px] shadow-panel transition-transform group-hover:scale-[1.03] ${seenStoryIds.includes(story.id) ? 'bg-border' : 'bg-gradient-to-br from-primary via-primary/75 to-accent'}`}><span className="flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-card bg-secondary">{story.signed_url ? <img src={story.signed_url} alt="" className="size-full object-cover" loading="lazy"/> : <span className="flex size-full items-center justify-center bg-primary/10 text-primary"><CircleUserRound className="size-7"/></span>}</span></span><span className="w-full truncate text-xs font-medium">{members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')}</span></button>)}</div> : <p className="text-sm text-muted-foreground">{t('cloud.stories.noStories')}</p>}
       </section>
 
       <div className="grid min-h-[30rem] overflow-hidden rounded-xl border border-border bg-card md:grid-cols-[18rem_minmax(0,1fr)]">
@@ -545,7 +585,7 @@ export function CloudChatsExperience() {
         </aside>
         <section className={`${mobileThreadOpen ? 'flex' : 'hidden md:flex'} min-h-[25rem] min-w-0 flex-col bg-background/30`}>
           {activeConversation ? <><header className="flex items-center gap-3 border-b border-border p-3 sm:p-4"><Button type="button" size="sm" variant="ghost" className="size-9 shrink-0 rounded-xl p-0 md:hidden" aria-label={t('chats.backToChats')} onClick={() => setMobileThreadOpen(false)}><ArrowLeft className="rtl:-scale-x-100"/></Button><div className="min-w-0 flex-1"><h3 className="truncate font-semibold">{activeConversation.title ?? peerNames[activeConversation.id] ?? t('cloud.conversations.private')}</h3><p className="text-xs text-muted-foreground">{realtimeConnected ? t('cloud.realtime.connected') : t('cloud.realtime.polling')} · {onlineUserIds.length} {t('cloud.realtime.online')}</p></div>{activeConversation.kind === 'group' ? <Button size="sm" variant="outline" onClick={() => setManageGroupOpen(value => !value)}>{t('cloud.group.manageMembers')}</Button> : null}</header>
-          {manageGroupOpen && activeConversation.kind === 'group' ? <section className="border-b border-border bg-card p-3"><h4 className="mb-2 text-sm font-semibold">{t('cloud.group.manageMembers')}</h4><div className="mb-3 grid gap-1">{(conversationMembers[activeId] ?? []).map(member => <div key={member.user_id} className="flex items-center justify-between gap-2 rounded-md bg-secondary/50 px-2 py-1.5 text-xs"><span className="truncate">{members.find(item => item.id === member.user_id)?.display_name ?? (member.user_id === session.user.id ? profile?.display_name : t('cloud.members.member'))} · {t(member.role === 'owner' ? 'cloud.group.owner' : member.role === 'admin' ? 'cloud.group.admin' : 'cloud.group.member')}</span>{member.user_id === session.user.id || ['owner','admin'].includes(conversationMembers[activeId]?.find(item => item.user_id === session.user.id)?.role ?? '') ? <Button size="sm" variant="ghost" onClick={() => void removeGroupMember(member.user_id)} disabled={busy}>{member.user_id === session.user.id ? t('cloud.group.leave') : t('cloud.group.removeMember')}</Button> : null}</div>)}</div><form onSubmit={addGroupMembers} className="grid gap-2"><h5 className="text-xs font-semibold">{t('cloud.group.addMembers')}</h5><div className="max-h-32 overflow-y-auto">{filteredMembers.filter(member => !(conversationMembers[activeId] ?? []).some(current => current.user_id === member.id)).map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={groupAddMemberIds.includes(member.id)} onChange={e => setGroupAddMemberIds(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span>{member.display_name}</span></label>)}</div><Button size="sm" type="submit" disabled={busy || !groupAddMemberIds.length}>{t('cloud.group.addMembers')}</Button></form></section> : null}<div className="flex-1 space-y-3 overflow-y-auto p-4" role="log" aria-live="polite">{messages.map(message => <article key={message.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.sender_id === session.user.id ? 'ms-auto bg-primary/15' : 'bg-secondary'}`}>
+          {manageGroupOpen && activeConversation.kind === 'group' ? <section className="border-b border-border bg-card p-3"><h4 className="mb-2 text-sm font-semibold">{t('cloud.group.manageMembers')}</h4><div className="mb-3 grid gap-1">{(conversationMembers[activeId] ?? []).map(member => <div key={member.user_id} className="flex items-center justify-between gap-2 rounded-md bg-secondary/50 px-2 py-1.5 text-xs"><span className="truncate">{members.find(item => item.id === member.user_id)?.display_name ?? (member.user_id === session.user.id ? profile?.display_name : t('cloud.members.member'))} · {t(member.role === 'owner' ? 'cloud.group.owner' : member.role === 'admin' ? 'cloud.group.admin' : 'cloud.group.member')}</span>{member.user_id === session.user.id || ['owner','admin'].includes(conversationMembers[activeId]?.find(item => item.user_id === session.user.id)?.role ?? '') ? <Button size="sm" variant="ghost" onClick={() => void removeGroupMember(member.user_id)} disabled={busy}>{member.user_id === session.user.id ? t('cloud.group.leave') : t('cloud.group.removeMember')}</Button> : null}</div>)}</div><form onSubmit={addGroupMembers} className="grid gap-2"><h5 className="text-xs font-semibold">{t('cloud.group.addMembers')}</h5><div className="max-h-32 overflow-y-auto">{filteredMembers.filter(member => !(conversationMembers[activeId] ?? []).some(current => current.user_id === member.id)).map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={groupAddMemberIds.includes(member.id)} onChange={e => setGroupAddMemberIds(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span>{member.display_name}</span></label>)}</div><Button size="sm" type="submit" disabled={busy || !groupAddMemberIds.length}>{t('cloud.group.addMembers')}</Button></form></section> : null}<div className="flex-1 space-y-3 overflow-y-auto p-4" role="log" aria-live="polite">{messages.map(message => <article id={`cloud-message-${message.id}`} key={message.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.sender_id === session.user.id ? 'ms-auto bg-primary/15' : 'bg-secondary'} ${jumpToMessageId === message.id ? 'ring-2 ring-primary/70' : ''}`}>
             {message.reply_to_message_id ? <p className="mb-2 rounded-md border-s-2 border-primary/60 px-2 py-1 text-xs text-muted-foreground">{messages.find(item => item.id === message.reply_to_message_id)?.content ?? 'Reply to message'}</p> : null}
             {editingMessageId === message.id ? <div className="grid gap-2"><Textarea value={editingText} onChange={e => setEditingText(e.target.value)} maxLength={10000}/><div className="flex gap-1"><Button size="sm" onClick={() => void editMessage(message.id)} disabled={!editingText.trim()}>{t('cloud.messages.saveEdit')}</Button><Button size="sm" variant="ghost" onClick={() => setEditingMessageId(null)}>{t('cloud.messages.cancel')}</Button></div></div> : <p dir="auto">{message.deleted_for_everyone ? t('cloud.messages.deleted') : message.content}</p>}
             {(messageAttachments[message.id] ?? []).map(attachment => attachment.mime_type.startsWith('image/') ? <a key={attachment.id} href={attachment.signed_url} target="_blank" rel="noreferrer" className="mt-2 block"><img src={attachment.signed_url} alt={attachment.file_name} className="max-h-64 max-w-full rounded-lg object-contain" loading="lazy"/></a> : attachment.mime_type.startsWith('audio/') || attachment.mime_type.startsWith('video/') ? <audio key={attachment.id} controls preload="metadata" src={attachment.signed_url} className="mt-2 max-w-full"/> : <a key={attachment.id} href={attachment.signed_url} download={attachment.file_name} className="mt-2 block truncate text-xs underline">{attachment.file_name} · {Math.ceil(attachment.file_size / 1024)} KB</a>)}
@@ -562,10 +602,30 @@ export function CloudChatsExperience() {
           </article>)}{!messages.length ? <p className="text-sm text-muted-foreground">{t('cloud.messages.empty')}</p> : null}</div>{typingUserId ? <p className="px-4 py-2 text-xs text-muted-foreground">{members.find(item => item.id === typingUserId)?.display_name ?? t('cloud.members.member')} {t('cloud.messages.typing')}</p> : null}<form onSubmit={sendMessage} className="flex flex-col gap-2 border-t border-border p-3">{replyToMessageId ? <div className="flex items-center justify-between rounded-md bg-secondary px-2 py-1 text-xs"><span className="truncate">{t('chats.message.replying')}: {messages.find(item => item.id === replyToMessageId)?.content ?? 'message'}</span><button type="button" onClick={() => setReplyToMessageId(null)}>{t('cloud.messages.cancel')}</button></div> : null}{selectedFile ? <p className="text-xs text-muted-foreground">{t('cloud.messages.attachmentLabel')}: {selectedFile.name} · <button type="button" onClick={() => setSelectedFile(null)}>{t('cloud.stories.remove')}</button></p> : null}{voiceBlob ? <p className="text-xs text-muted-foreground">{t('cloud.messages.voiceReadyLabel')} · <button type="button" onClick={() => setVoiceBlob(null)}>{t('cloud.stories.remove')}</button></p> : null}<div className="flex gap-2"><input type="file" className="hidden" id="cloud-chat-file" accept="image/*,application/pdf,text/plain" onChange={e => { setSelectedFile(e.target.files?.[0] ?? null); setVoiceBlob(null) }}/><Button type="button" size="sm" className="size-9 p-0" variant="outline" aria-label={t('cloud.messages.attach')} onClick={() => document.getElementById('cloud-chat-file')?.click()}><Paperclip/></Button><Button type="button" size="sm" className="size-9 p-0" variant={recording ? 'danger' : 'outline'} aria-label={recording ? t('cloud.messages.stopVoice') : t('cloud.messages.voice')} onClick={() => recording ? stopVoiceRecording() : void startVoiceRecording()}>{recording ? <Square/> : <Mic/>}</Button><Input value={messageText} onChange={e => { setMessageText(e.target.value); realtimeRef.current?.broadcast('typing', { user_id: session.user.id, typing: true }) }} placeholder={t('cloud.messages.write')} aria-label={t('cloud.messages.write')} /><Button type="submit" disabled={busy || (!messageText.trim() && !selectedFile && !voiceBlob)}><Send data-icon="inline-start"/>{t('cloud.messages.send')}</Button></div></form></> : <div className="flex flex-1 items-center justify-center p-6 text-center"><EmptyState icon={<BookOpen/>} title={t('cloud.conversations.choose')} description={t('cloud.conversations.chooseDescription')}/></div>}
         </section>
       </div>
+      <Dialog open={messageSearchOpen} onOpenChange={setMessageSearchOpen}>
+        <DialogContent className="max-w-xl rounded-3xl">
+          <DialogTitle>{t('cloud.search.title')}</DialogTitle>
+          <DialogDescription>{t('cloud.search.description')}</DialogDescription>
+          <form onSubmit={searchMessages} className="mt-4 flex gap-2">
+            <Input value={messageSearchQuery} onChange={event => setMessageSearchQuery(event.target.value)} placeholder={t('cloud.search.placeholder')} aria-label={t('cloud.search.placeholder')} autoFocus />
+            <Button type="submit" size="sm" disabled={messageSearchBusy || !messageSearchQuery.trim()}>{messageSearchBusy ? t('cloud.search.searching') : t('cloud.search.submit')}</Button>
+          </form>
+          <div className="mt-3 max-h-[55dvh] overflow-y-auto">
+            {messageSearchResults.length ? messageSearchResults.map(result => <button key={result.id} type="button" onClick={() => { setActiveId(result.conversation_id); setMobileThreadOpen(true); setJumpToMessageId(result.id); setMessageSearchOpen(false) }} className="mb-1 block w-full rounded-xl p-3 text-start transition-colors hover:bg-secondary">
+              <span className="block break-words text-sm" dir="auto">{result.content}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{conversations.find(item => item.id === result.conversation_id)?.title ?? peerNames[result.conversation_id] ?? t('cloud.conversations.private')} · {new Date(result.created_at).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US')}</span>
+            </button>) : messageSearchQuery.trim() && !messageSearchBusy ? <p className="py-4 text-center text-sm text-muted-foreground">{t('cloud.search.noResults')}</p> : null}
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={activeStory !== null} onOpenChange={open => { if (!open) { setActiveStory(null); setStoryViewers([]) } }}>
         <DialogContent className="max-w-lg">
           <DialogTitle>{t('cloud.stories.viewerTitle')}</DialogTitle>
           <DialogDescription>{activeStory ? new Date(activeStory.expires_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-US') : ''}</DialogDescription>
+          <div className="flex items-center justify-between gap-2">
+            <Button size="sm" variant="outline" disabled={activeStoryIndex >= stories.length - 1} onClick={() => { const story = stories[activeStoryIndex + 1]; if (story) void openStory(story) }}>{t('cloud.stories.previous')}</Button>
+            <Button size="sm" variant="outline" disabled={activeStoryIndex <= 0} onClick={() => { const story = stories[activeStoryIndex - 1]; if (story) void openStory(story) }}>{t('cloud.stories.next')}</Button>
+          </div>
           {activeStory ? <div className="mt-3 grid gap-3">
             {activeStory.signed_url ? <img src={activeStory.signed_url} alt={t('cloud.stories.imageAlt')} className="max-h-[55dvh] w-full rounded-xl object-contain"/> : null}
             {activeStory.text_content ? <p className="whitespace-pre-wrap break-words rounded-xl bg-secondary p-4 text-base" dir="auto">{activeStory.text_content}</p> : null}
