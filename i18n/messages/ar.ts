@@ -458,6 +458,7 @@ export const ar = {
   'cloud.members.member': 'عضو في المجتمع',
   'cloud.stories.publishedSubtitle': 'القصص المنشورة بتنتهي بعد ٢٤ ساعة.',
   'cloud.conversations.chooseOption': 'اختار محادثة',
+  'cloud.messages.voiceTooShort': 'التسجيل قصير جدًا. سجّل نص ثانية على الأقل.',
   'cloud.messages.fileTypeInvalid': 'نوع الملف ده مش مدعوم. اختار صورة أو PDF أو ملف نصي.',
   'cloud.messages.fileTooLarge': 'حجم الملف أكبر من الحد المسموح (50 ميجابايت).',
   'cloud.messages.uploadProgress': 'تقدم رفع الملف',

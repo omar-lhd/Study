@@ -462,6 +462,7 @@ export const en: Record<MessageKey, string> = {
   'cloud.members.member': 'Community member',
   'cloud.stories.publishedSubtitle': 'Published stories expire after 24 hours.',
   'cloud.conversations.chooseOption': 'Choose conversation',
+  'cloud.messages.voiceTooShort': 'That recording was too short. Record at least half a second.',
   'cloud.messages.fileTypeInvalid': 'This file type is not supported. Choose an image, PDF, or text file.',
   'cloud.messages.fileTooLarge': 'The file exceeds the 50 MB upload limit.',
   'cloud.messages.uploadProgress': 'File upload progress',

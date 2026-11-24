@@ -98,6 +98,17 @@ export function CloudChatsExperience() {
 
 
 
+  useEffect(() => () => {
+    uploadAbortRef.current?.abort()
+    if (recorderRef.current?.state === 'recording') {
+      cancelRecordingRef.current = true
+      chunksRef.current = []
+      recorderRef.current.stop()
+    }
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current)
+  }, [])
+
   useEffect(() => {
     const audio = voicePreviewRef.current
     if (!audio || !voiceBlob) return
@@ -325,9 +336,16 @@ export function CloudChatsExperience() {
         }
         if (!cancelled) {
           const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-          setVoiceBlob(blob)
-          setVoiceDurationMs(Date.now() - recordingStartedAtRef.current)
-          setSelectedFile(null)
+          const duration = Date.now() - recordingStartedAtRef.current
+          if (!blob.size || duration < 500) {
+            setVoiceBlob(null)
+            setVoiceDurationMs(0)
+            setError(t('cloud.messages.voiceTooShort'))
+          } else {
+            setVoiceBlob(blob)
+            setVoiceDurationMs(duration)
+            setSelectedFile(null)
+          }
         } else {
           setVoiceBlob(null)
           setVoiceDurationMs(0)
