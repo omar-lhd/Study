@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
-import { BookOpen, CheckCircle2, KeyRound, Mail, ShieldCheck, UserRound, LogOut } from 'lucide-react'
+import { BookOpen, CheckCircle2, KeyRound, Mail, ShieldCheck, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
