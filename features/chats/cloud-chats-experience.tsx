@@ -197,7 +197,8 @@ export function CloudChatsExperience() {
           setPeerNames(names)
           setPeerAvatars(avatars)
         } else { setPeerNames({}); setPeerAvatars({}) }
-        if (convs[0]) setActiveId(current => current || convs[0].id)
+        const firstConversation = convs[0]
+        if (firstConversation) setActiveId(current => current || firstConversation.id)
       } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setPeerAvatars({}); setConversationMembers({}); setConversationPreferences({}) }
       const now = new Date().toISOString()
       const storyRows = await cloudRest<Story[]>(`stories?select=id,owner_id,story_type,text_content,storage_path,audience,created_at,expires_at&status=eq.published&expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`)
@@ -616,7 +617,7 @@ export function CloudChatsExperience() {
 
   async function createGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!groupTitle.trim() || !selectedGroupMembers.length) return
+    if (!session || !groupTitle.trim() || !selectedGroupMembers.length) return
     if (groupImageFile) {
       const validation = validateStoryImage(groupImageFile)
       if (validation) { setError(t(validation === 'imageTypeInvalid' ? 'cloud.stories.imageTypeInvalid' : 'cloud.error.storyImageSize')); return }
