@@ -78,7 +78,10 @@ export async function requestEmailOtp(email: string, createUser = false) {
   // Supabase uses the configured Site URL (often localhost in development) unless
   // redirect_to is supplied. Bind the email link to the exact app origin in use,
   // including the deployed Vercel preview domain.
-  const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+  const configuredRedirect = process.env.NEXT_PUBLIC_AUTH_REDIRECT_URL?.trim()
+  const redirectTo = typeof window !== 'undefined'
+    ? (configuredRedirect || `${window.location.origin}/auth/callback`)
+    : configuredRedirect
   const redirectQuery = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
   await authRequest(`otp${redirectQuery}`, { email: email.trim().toLowerCase(), create_user: createUser })
 }
