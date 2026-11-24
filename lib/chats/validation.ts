@@ -8,9 +8,10 @@ export function validateChatMedia(
   media: Pick<Blob, 'type' | 'size'>,
   isVoiceMessage = false,
 ): ChatMediaValidationError | null {
+  const allowedImages = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']
   const allowed = isVoiceMessage
     ? media.type.startsWith('audio/')
-    : media.type.startsWith('image/') || media.type === 'application/pdf' || media.type === 'text/plain'
+    : allowedImages.includes(media.type) || media.type === 'application/pdf' || media.type === 'text/plain'
 
   if (!allowed) return 'fileTypeInvalid'
   if (media.size > MAX_CHAT_ATTACHMENT_BYTES) return 'fileTooLarge'
@@ -20,7 +21,7 @@ export function validateChatMedia(
 export function validateStoryImage(
   image: Pick<Blob, 'type' | 'size'>,
 ): StoryImageValidationError | null {
-  if (!image.type.startsWith('image/')) return 'imageTypeInvalid'
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(image.type)) return 'imageTypeInvalid'
   if (image.size > MAX_STORY_IMAGE_BYTES) return 'imageTooLarge'
   return null
 }

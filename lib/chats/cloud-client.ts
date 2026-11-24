@@ -214,6 +214,28 @@ export async function cloudStorageUploadWithProgress(
   })
 }
 
+export async function cloudStorageSignedUrls(storagePaths: string[], expiresIn = 86400): Promise<Record<string, string>> {
+  const paths = [...new Set(storagePaths.filter(Boolean))]
+  if (!paths.length) return {}
+  const { url, key } = config()
+  const session = await getValidSession()
+  const response = await fetch(`${url}/storage/v1/object/sign/chat-media`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paths, expiresIn }),
+  })
+  const data = await response.json().catch(() => [])
+  if (!response.ok || !Array.isArray(data)) {
+    const message = data && typeof data.message === 'string' ? data.message : `Could not create attachment links (${response.status})`
+    throw new Error(message)
+  }
+  const signed: Record<string, string> = {}
+  for (const item of data as Array<{ path?: string; signedURL?: string }>) {
+    if (item.path && item.signedURL) signed[item.path] = new URL(item.signedURL, `${url}/storage/v1/`).toString()
+  }
+  return signed
+}
+
 export async function cloudStorageSignedUrl(storagePath: string, expiresIn = 3600): Promise<string> {
   const { url, key } = config()
   const session = await getValidSession()

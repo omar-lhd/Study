@@ -32,6 +32,7 @@ describe('Story image validation', () => {
   it('requires an image and enforces the Story upload limit', () => {
     assert.equal(validateStoryImage({ type: 'text/plain', size: 10 }), 'imageTypeInvalid')
     assert.equal(validateStoryImage({ type: 'image/webp', size: MAX_STORY_IMAGE_BYTES }), null)
+    assert.equal(validateStoryImage({ type: 'image/svg+xml', size: 10 }), 'imageTypeInvalid')
     assert.equal(validateStoryImage({ type: 'image/png', size: MAX_STORY_IMAGE_BYTES + 1 }), 'imageTooLarge')
   })
 })

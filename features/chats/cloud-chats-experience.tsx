@@ -11,7 +11,7 @@ import { usePreferences } from '@/components/providers/preferences-provider'
 import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
 import { formatMediaDuration, validateChatMedia, validateStoryImage } from '@/lib/chats/validation'
 
-type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; bio: string | null }
+type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; avatar_storage_path?: string | null; bio: string | null }
 type Conversation = { id: string; kind: 'direct' | 'group'; title: string | null; avatar_url: string | null; last_message_at: string | null; created_at: string }
 type Membership = { conversation_id: string; last_read_at: string | null; muted: boolean; pinned: boolean }
 type Message = { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; reply_to_message_id: string | null; deleted_for_everyone: boolean; edited_at: string | null; pinned_at: string | null }
@@ -21,6 +21,21 @@ type CloudNotification = { id: string; actor_id: string | null; notification_typ
 
 function apiFilter(ids: string[]) {
   return `in.(${ids.map(id => `"${id}"`).join(',')})`
+}
+
+async function resolveAvatarProfiles(profiles: Profile[]): Promise<Profile[]> {
+  const paths = [...new Set(profiles.map(profile => profile.avatar_url).filter((path): path is string => Boolean(path?.startsWith('avatars/')))]
+  if (!paths.length) return profiles
+  let signed: Record<string, string> = {}
+  try { signed = await cloudStorageSignedUrls(paths, 86400) } catch { /* keep initials if Storage is temporarily unavailable */ }
+  return profiles.map(profile => profile.avatar_url?.startsWith('avatars/')
+    ? { ...profile, avatar_storage_path: profile.avatar_url, avatar_url: signed[profile.avatar_url] ?? null }
+    : profile)
+}
+
+function avatarExtension(mimeType: string) {
+  const extension = mimeType.split('/')[1]?.toLowerCase() ?? 'png'
+  return extension === 'jpeg' ? 'jpg' : extension
 }
 
 export function CloudChatsExperience() {
@@ -34,6 +49,7 @@ export function CloudChatsExperience() {
   const [conversationPreviews, setConversationPreviews] = useState<Record<string, string>>({})
   const [messageReceiptStatus, setMessageReceiptStatus] = useState<Record<string, 'sent' | 'delivered' | 'read'>>({})
   const [peerNames, setPeerNames] = useState<Record<string, string>>({})
+  const [peerAvatars, setPeerAvatars] = useState<Record<string, string>>({})
   const [messageReactions, setMessageReactions] = useState<Record<string, string[]>>({})
   const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
@@ -48,7 +64,7 @@ export function CloudChatsExperience() {
   const [recording, setRecording] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [uploadKind, setUploadKind] = useState<'message' | 'story' | null>(null)
+  const [uploadKind, setUploadKind] = useState<'message' | 'story' | 'avatar' | 'group' | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
@@ -90,11 +106,13 @@ export function CloudChatsExperience() {
   const [profileName, setProfileName] = useState('')
   const [profileUsername, setProfileUsername] = useState('')
   const [profileBio, setProfileBio] = useState('')
+  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null)
   const [groupComposerOpen, setGroupComposerOpen] = useState(false)
   const [manageGroupOpen, setManageGroupOpen] = useState(false)
   const [groupAddMemberIds, setGroupAddMemberIds] = useState<string[]>([])
   const [conversationMembers, setConversationMembers] = useState<Record<string, Array<{ user_id: string; role: string }>>>({})
   const [groupTitle, setGroupTitle] = useState('')
+  const [groupImageFile, setGroupImageFile] = useState<File | null>(null)
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([])
 
 
@@ -126,16 +144,24 @@ export function CloudChatsExperience() {
     if (!session) return
     setError('')
     try {
-      const me = await cloudRest<Profile[]>(`profiles?select=id,display_name,username,avatar_url,bio&id=eq.${session.user.id}&limit=1`)
-      setProfile(me[0] ?? null)
-      if (me[0]) { setProfileName(me[0].display_name ?? ''); setProfileUsername(me[0].username ?? ''); setProfileBio(me[0].bio ?? '') }
-      const directory = await cloudRest<Profile[]>('profiles?select=id,display_name,username,avatar_url,bio&order=display_name.asc&limit=100')
+      const meRows = await cloudRest<Profile[]>(`profiles?select=id,display_name,username,avatar_url,bio&id=eq.${session.user.id}&limit=1`)
+      const me = (await resolveAvatarProfiles(meRows))[0] ?? null
+      setProfile(me)
+      if (me) { setProfileName(me.display_name ?? ''); setProfileUsername(me.username ?? ''); setProfileBio(me.bio ?? '') }
+      const directoryRows = await cloudRest<Profile[]>('profiles?select=id,display_name,username,avatar_url,bio&order=display_name.asc&limit=100')
+      const directory = await resolveAvatarProfiles(directoryRows)
       setMembers(directory.filter(item => item.id !== session.user.id))
       const memberRows = await cloudRest<Membership[]>(`conversation_members?select=conversation_id,last_read_at,muted,pinned&user_id=eq.${session.user.id}`)
       setConversationPreferences(Object.fromEntries(memberRows.map(row => [row.conversation_id, { pinned: row.pinned, muted: row.muted }])))
       if (memberRows.length) {
         const ids = memberRows.map(row => row.conversation_id)
-        const convs = await cloudRest<Conversation[]>(`conversations?select=id,kind,title,avatar_url,last_message_at,created_at&id=${apiFilter(ids)}&order=last_message_at.desc.nullslast`)
+        const convRows = await cloudRest<Conversation[]>(`conversations?select=id,kind,title,avatar_url,last_message_at,created_at&id=${apiFilter(ids)}&order=last_message_at.desc.nullslast`)
+        const groupAvatarPaths = convRows.map(conversation => conversation.avatar_url).filter((path): path is string => Boolean(path?.startsWith('avatars/')))
+        let signedConversationAvatars: Record<string, string> = {}
+        try { signedConversationAvatars = await cloudStorageSignedUrls(groupAvatarPaths, 86400) } catch { /* fall back to member initials */ }
+        const convs = convRows.map(conversation => conversation.avatar_url?.startsWith('avatars/')
+          ? { ...conversation, avatar_url: signedConversationAvatars[conversation.avatar_url] ?? null }
+          : conversation)
         const unreadPairs = await Promise.all(memberRows.map(async row => {
           const since = row.last_read_at ?? '1970-01-01T00:00:00.000Z'
           const unread = await cloudRest<{ id: string }[]>(`messages?select=id&conversation_id=eq.${row.conversation_id}&sender_id=neq.${session.user.id}&created_at=gt.${encodeURIComponent(since)}&deleted_for_everyone=eq.false&limit=100`)
@@ -158,19 +184,24 @@ export function CloudChatsExperience() {
         setConversationMembers(memberMap)
         const peerIds = [...new Set(allMembers.map(row => row.user_id).filter(id => id !== session.user.id))]
         if (peerIds.length) {
-          const peerProfiles = await cloudRest<Pick<Profile, 'id' | 'display_name'>[]>(`profiles?select=id,display_name&id=${apiFilter(peerIds)}`)
+          const profilesById = new Map([...directory, ...(me ? [me] : [])].map(item => [item.id, item]))
           const names: Record<string, string> = {}
+          const avatars: Record<string, string> = {}
           for (const row of allMembers) {
-            const peer = peerProfiles.find(item => item.id === row.user_id)
-            if (peer) names[row.conversation_id] = names[row.conversation_id] ? `${names[row.conversation_id]}, ${peer.display_name}` : peer.display_name
+            const peer = profilesById.get(row.user_id)
+            if (peer) {
+              names[row.conversation_id] = names[row.conversation_id] ? `${names[row.conversation_id]}, ${peer.display_name}` : peer.display_name
+              if (peer.avatar_url) avatars[row.conversation_id] = peer.avatar_url
+            }
           }
           setPeerNames(names)
-        } else setPeerNames({})
+          setPeerAvatars(avatars)
+        } else { setPeerNames({}); setPeerAvatars({}) }
         if (!activeId && convs[0]) setActiveId(convs[0].id)
-      } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setConversationMembers({}); setConversationPreferences({}) }
+      } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setPeerAvatars({}); setConversationMembers({}); setConversationPreferences({}) }
       const now = new Date().toISOString()
       const storyRows = await cloudRest<Story[]>(`stories?select=id,owner_id,story_type,text_content,storage_path,audience,created_at,expires_at&status=eq.published&expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`)
-      const storiesWithUrls = await Promise.all(storyRows.map(async story => story.storage_path ? { ...story, signed_url: await cloudStorageSignedUrl(story.storage_path) } : story))
+      const storiesWithUrls = await Promise.all(storyRows.map(async story => story.storage_path ? { ...story, signed_url: await cloudStorageSignedUrl(story.storage_path, 86400) } : story))
       setStories(storiesWithUrls)
       if (storyRows.length) {
         const ownStoryIds = storyRows.filter(story => story.owner_id === session.user.id).map(story => story.id)
@@ -544,36 +575,88 @@ export function CloudChatsExperience() {
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!session) return
+    if (profileAvatarFile) {
+      const validation = validateStoryImage(profileAvatarFile)
+      if (validation) { setError(t(validation === 'imageTypeInvalid' ? 'cloud.stories.imageTypeInvalid' : 'cloud.error.storyImageSize')); return }
+    }
     setBusy(true); setError(''); setStatus('')
+    let uploadedAvatarPath: string | null = null
+    let profileUpdated = false
+    const oldAvatarPath = profile?.avatar_storage_path ?? null
     try {
+      let avatarUrl = profile?.avatar_storage_path ?? profile?.avatar_url ?? null
+      if (profileAvatarFile) {
+        uploadedAvatarPath = `avatars/${session.user.id}/profile/${crypto.randomUUID()}.${avatarExtension(profileAvatarFile.type)}`
+        const controller = new AbortController()
+        uploadAbortRef.current = controller
+        setUploadKind('avatar')
+        setUploadProgress(0)
+        await cloudStorageUploadWithProgress(uploadedAvatarPath, profileAvatarFile, progress => setUploadProgress(progress), controller.signal)
+        uploadAbortRef.current = null
+        setUploadProgress(null)
+        setUploadKind(null)
+        avatarUrl = uploadedAvatarPath
+      }
       await cloudRest<Profile[]>(`profiles?id=eq.${session.user.id}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ display_name: profileName.trim(), username: profileUsername.trim() || null, bio: profileBio.trim() || null }),
+        body: JSON.stringify({ display_name: profileName.trim(), username: profileUsername.trim() || null, bio: profileBio.trim() || null, avatar_url: avatarUrl }),
       })
+      profileUpdated = true
+      if (oldAvatarPath && uploadedAvatarPath && oldAvatarPath !== uploadedAvatarPath) void cloudStorageRemove(oldAvatarPath).catch(() => {})
+      setProfileAvatarFile(null)
       setProfileOpen(false)
       await loadData()
       setStatus(t('cloud.profile.saved'))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('cloud.error.saveProfile'))
-    } finally { setBusy(false) }
+      if (uploadedAvatarPath && !profileUpdated) void cloudStorageRemove(uploadedAvatarPath).catch(() => {})
+      setError(cause instanceof Error && cause.name === 'AbortError' ? t('cloud.messages.uploadCancelled') : cause instanceof Error ? cause.message : t('cloud.error.saveProfile'))
+    } finally { uploadAbortRef.current = null; setUploadProgress(null); setUploadKind(null); setBusy(false) }
   }
 
   async function createGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!groupTitle.trim()) return
+    if (!groupTitle.trim() || !selectedGroupMembers.length) return
+    if (groupImageFile) {
+      const validation = validateStoryImage(groupImageFile)
+      if (validation) { setError(t(validation === 'imageTypeInvalid' ? 'cloud.stories.imageTypeInvalid' : 'cloud.error.storyImageSize')); return }
+    }
     setBusy(true); setError(''); setStatus('')
+    let groupAvatarPath: string | null = null
+    let createdGroupId: string | null = null
     try {
+      if (groupImageFile) {
+        groupAvatarPath = `avatars/${session.user.id}/groups/${crypto.randomUUID()}.${avatarExtension(groupImageFile.type)}`
+        const controller = new AbortController()
+        uploadAbortRef.current = controller
+        setUploadKind('group')
+        setUploadProgress(0)
+        await cloudStorageUploadWithProgress(groupAvatarPath, groupImageFile, progress => setUploadProgress(progress), controller.signal)
+        uploadAbortRef.current = null
+        setUploadProgress(null)
+        setUploadKind(null)
+      }
       const id = await cloudRest<string>('rpc/create_group_conversation', {
         method: 'POST',
         body: JSON.stringify({ p_title: groupTitle.trim(), p_member_ids: selectedGroupMembers }),
       })
-      setGroupTitle(''); setSelectedGroupMembers([]); setGroupComposerOpen(false); setActiveId(id)
+      createdGroupId = id
+      if (groupAvatarPath) {
+        await cloudRest<void>(`conversations?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ avatar_url: groupAvatarPath }) })
+      }
+      setGroupTitle(''); setSelectedGroupMembers([]); setGroupImageFile(null); setGroupComposerOpen(false); setActiveId(id)
       await loadData()
       setStatus(t('cloud.members.groupCreated'))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('cloud.error.createGroup'))
-    } finally { setBusy(false) }
+      if (groupAvatarPath) void cloudStorageRemove(groupAvatarPath).catch(() => {})
+      if (createdGroupId && groupImageFile) {
+        setGroupTitle(''); setSelectedGroupMembers([]); setGroupImageFile(null); setGroupComposerOpen(false); setActiveId(createdGroupId)
+        await loadData().catch(() => {})
+        setError(t('cloud.error.groupAvatarUpload'))
+      } else {
+        setError(cause instanceof Error && cause.name === 'AbortError' ? t('cloud.messages.uploadCancelled') : cause instanceof Error ? cause.message : t('cloud.error.createGroup'))
+      }
+    } finally { uploadAbortRef.current = null; setUploadProgress(null); setUploadKind(null); setBusy(false) }
   }
 
   async function markStorySeen(storyId: string) {
@@ -679,7 +762,7 @@ export function CloudChatsExperience() {
         <div className="flex gap-2"><Button variant="outline" size="sm" className="size-9 rounded-xl p-0" onClick={() => setMessageSearchOpen(true)} aria-label={t('cloud.search.title')}><Search className="size-4" aria-hidden="true"/></Button><Button variant="outline" onClick={() => setNotificationsOpen(value => !value)} aria-label={t('cloud.notifications.title')}><Bell data-icon="inline-start"/>{notifications.filter(item => !item.read_at).length || ''}</Button><Button variant="outline" onClick={() => setProfileOpen(value => !value)} disabled={busy}>{t('cloud.profile.edit')}</Button><Button variant="outline" onClick={() => { void loadData(); void loadMessages() }} disabled={busy}><RefreshCw data-icon="inline-start" />{t('cloud.refresh')}</Button></div>
       </header>
       {notificationsOpen ? <section className="rounded-xl border border-border bg-card p-3"><h3 className="mb-2 font-semibold">{t('cloud.notifications.title')}</h3>{notifications.length ? <div className="max-h-64 overflow-y-auto">{notifications.map(notification => <button key={notification.id} type="button" onClick={() => void openNotification(notification)} className={`mb-1 block w-full rounded-lg p-2 text-start text-sm hover:bg-secondary ${notification.read_at ? 'opacity-70' : 'bg-primary/5'}`}><span className="block font-medium">{notificationLabel(notification)}</span><span className="mt-1 block text-xs text-muted-foreground">{members.find(item => item.id === notification.actor_id)?.display_name ?? t('cloud.members.member')} · {new Date(notification.created_at).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US')}</span></button>)}</div> : <p className="text-sm text-muted-foreground">{t('cloud.notifications.empty')}</p>}</section> : null}
-      {profileOpen ? <form onSubmit={saveProfile} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-3"><div className="grid gap-1"><Label htmlFor="profile-display-name">{t('cloud.profile.displayName')}</Label><Input id="profile-display-name" value={profileName} onChange={e => setProfileName(e.target.value)} required maxLength={80}/></div><div className="grid gap-1"><Label htmlFor="profile-username">{t('cloud.profile.username')}</Label><Input id="profile-username" value={profileUsername} onChange={e => setProfileUsername(e.target.value)} minLength={3} maxLength={24} placeholder={t('cloud.profile.username')}/></div><div className="grid gap-1"><Label htmlFor="profile-bio">{t('cloud.profile.bio')}</Label><Input id="profile-bio" value={profileBio} onChange={e => setProfileBio(e.target.value)} maxLength={160} placeholder={t('cloud.profile.bio')}/></div><Button type="submit" disabled={busy || !profileName.trim()}>{t('cloud.profile.save')}</Button></form> : null}
+      {profileOpen ? <form onSubmit={saveProfile} className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-3"><div className="flex items-center gap-3 sm:col-span-3"><Avatar name={profileName} src={profile?.avatar_url ?? undefined} size="lg"/><div className="grid min-w-0 gap-1.5"><Label htmlFor="profile-avatar">{t('cloud.profile.avatar')}</Label><input id="profile-avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" disabled={busy} onChange={event => setProfileAvatarFile(event.target.files?.[0] ?? null)} className="max-w-full text-xs"/>{profileAvatarFile ? <p className="truncate text-xs text-muted-foreground">{profileAvatarFile.name}</p> : <p className="text-xs text-muted-foreground">{t('cloud.profile.avatarHint')}</p>}</div></div>{uploadProgress !== null && uploadKind === 'avatar' ? <div className="flex items-center gap-2 rounded-xl bg-secondary/50 p-2 sm:col-span-3"><progress value={uploadProgress} max={100} aria-label={t('cloud.messages.uploadProgress')} className="h-2 min-w-0 flex-1"/><span className="text-xs tabular-nums">{uploadProgress}%</span><Button type="button" size="sm" variant="ghost" onClick={cancelUpload}>{t('cloud.messages.cancelUpload')}</Button></div> : null}<div className="grid gap-1"><Label htmlFor="profile-display-name">{t('cloud.profile.displayName')}</Label><Input id="profile-display-name" value={profileName} onChange={e => setProfileName(e.target.value)} required maxLength={80} disabled={busy}/></div><div className="grid gap-1"><Label htmlFor="profile-username">{t('cloud.profile.username')}</Label><Input id="profile-username" value={profileUsername} onChange={e => setProfileUsername(e.target.value)} minLength={3} maxLength={24} placeholder={t('cloud.profile.username')} disabled={busy}/></div><div className="grid gap-1"><Label htmlFor="profile-bio">{t('cloud.profile.bio')}</Label><Input id="profile-bio" value={profileBio} onChange={e => setProfileBio(e.target.value)} maxLength={160} placeholder={t('cloud.profile.bio')} disabled={busy}/></div><Button type="submit" disabled={busy || !profileName.trim()}>{t('cloud.profile.save')}</Button></form> : null}
 
       {error ? <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p> : null}
       {status ? <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-muted-foreground">{status}</p> : null}
@@ -693,10 +776,10 @@ export function CloudChatsExperience() {
       <div className="grid min-h-[30rem] overflow-hidden rounded-xl border border-border bg-card md:grid-cols-[18rem_minmax(0,1fr)]">
         <aside className={`${mobileThreadOpen ? 'hidden md:block' : 'block'} border-b border-border md:border-b-0 md:border-e`}>
           <div className="border-b border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">{t('cloud.conversations.title')}</h3><div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setDirectoryOpen(value => !value)} aria-pressed={directoryOpen}><Users data-icon="inline-start"/>{t('cloud.members.title')}</Button><Button size="sm" variant="ghost" onClick={() => setGroupComposerOpen(value => !value)}><Plus data-icon="inline-start"/>{t('cloud.members.group')}</Button></div></div><div className={`${directoryOpen ? 'block' : 'hidden'} relative`}><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"/><Input className="ps-9" value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder={t('cloud.members.search')}/></div>
-            {groupComposerOpen ? <form onSubmit={createGroup} className="mt-3 grid gap-2 rounded-lg bg-secondary/50 p-2"><Label htmlFor="group-title">{t('cloud.members.groupName')}</Label><Input id="group-title" value={groupTitle} onChange={e => setGroupTitle(e.target.value)} maxLength={80} required placeholder={t('cloud.members.groupName')}/><div className="max-h-32 overflow-y-auto">{filteredMembers.map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={selectedGroupMembers.includes(member.id)} onChange={e => setSelectedGroupMembers(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span className="truncate">{member.display_name}</span></label>)}</div><Button size="sm" type="submit" disabled={busy || !groupTitle.trim() || selectedGroupMembers.length === 0}>{t('cloud.members.createGroup')}</Button></form> : null}
+            {groupComposerOpen ? <form onSubmit={createGroup} className="mt-3 grid gap-2 rounded-xl bg-secondary/50 p-3"><Label htmlFor="group-title">{t('cloud.members.groupName')}</Label><Input id="group-title" value={groupTitle} onChange={e => setGroupTitle(e.target.value)} maxLength={80} required placeholder={t('cloud.members.groupName')} disabled={busy}/><div className="grid gap-1"><Label htmlFor="group-image">{t('cloud.members.groupImage')}</Label><input id="group-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" disabled={busy} onChange={event => setGroupImageFile(event.target.files?.[0] ?? null)} className="max-w-full text-xs"/>{groupImageFile ? <p className="truncate text-xs text-muted-foreground">{groupImageFile.name}</p> : null}</div>{uploadProgress !== null && uploadKind === 'group' ? <div className="flex items-center gap-2 rounded-xl bg-background/60 p-2"><progress value={uploadProgress} max={100} aria-label={t('cloud.messages.uploadProgress')} className="h-2 min-w-0 flex-1"/><span className="text-xs tabular-nums">{uploadProgress}%</span><Button type="button" size="sm" variant="ghost" onClick={cancelUpload}>{t('cloud.messages.cancelUpload')}</Button></div> : null}<div className="max-h-32 overflow-y-auto">{filteredMembers.map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" disabled={busy} checked={selectedGroupMembers.includes(member.id)} onChange={e => setSelectedGroupMembers(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><Avatar name={member.display_name} src={member.avatar_url ?? undefined} size="sm"/><span className="truncate">{member.display_name}</span></label>)}</div><Button size="sm" type="submit" disabled={busy || !groupTitle.trim() || selectedGroupMembers.length === 0}>{t('cloud.members.createGroup')}</Button></form> : null}
           </div>
-          <div className={`${directoryOpen ? 'block' : 'hidden'} max-h-72 overflow-y-auto p-2 md:max-h-[28rem]`}>{filteredMembers.map(member => <button key={member.id} type="button" onClick={() => void startDirect(member)} disabled={busy} className="flex w-full items-center gap-3 rounded-lg p-3 text-start hover:bg-secondary disabled:opacity-50"><Avatar name={member.display_name} size="md"/><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{member.display_name}</span><span className="block truncate text-xs text-muted-foreground">{member.username ? `@${member.username}` : member.bio ?? t('cloud.members.member')}</span></span><MessageCircle className="size-4 text-muted-foreground"/></button>)}{!filteredMembers.length ? <p className="p-3 text-xs text-muted-foreground">{t('cloud.members.noMembers')}</p> : null}</div>
-          <div className="border-t border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold">{t('cloud.conversations.title')}</h3><span className="text-[11px] text-muted-foreground">{conversations.length}</span></div>{conversations.map(conversation => <button key={conversation.id} type="button" aria-current={activeId === conversation.id ? 'page' : undefined} onClick={() => { setActiveId(conversation.id); setMobileThreadOpen(true) }} className={activeId === conversation.id ? 'mb-1 flex w-full items-center gap-3 rounded-2xl bg-primary/10 p-3 text-start text-sm ring-1 ring-primary/25' : 'mb-1 flex w-full items-center gap-3 rounded-2xl p-3 text-start text-sm transition-colors hover:bg-secondary'}><Avatar name={conversation.title ?? peerNames[conversation.id] ?? t('cloud.conversations.private')} src={conversation.avatar_url ?? undefined} size="md"/><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate font-semibold">{conversation.title ?? peerNames[conversation.id] ?? t('cloud.conversations.private')}</span>{conversationPreferences[conversation.id]?.pinned ? <Pin className="size-3.5 shrink-0 text-primary" aria-label={t('cloud.conversations.pinned')}/> : null}{conversationPreferences[conversation.id]?.muted ? <BellOff className="size-3.5 shrink-0 text-muted-foreground" aria-label={t('cloud.conversations.muted')}/> : null}</span><span className="shrink-0 text-[10px] text-muted-foreground">{new Date(conversation.last_message_at ?? conversation.created_at).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: '2-digit' })}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground">{conversationPreviews[conversation.id] || (conversation.kind === 'group' ? t('cloud.members.group') : t('cloud.conversations.private'))}</span></span>{unreadCounts[conversation.id] ? <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">{unreadCounts[conversation.id]}</span> : null}</button>)}{!conversations.length ? <div className="rounded-2xl bg-secondary/40 p-4 text-center"><p className="text-sm leading-6 text-muted-foreground">{t('cloud.conversations.emptyInbox')}</p><Button size="sm" variant="outline" className="mt-3 rounded-xl" onClick={() => setDirectoryOpen(true)}><Users data-icon="inline-start"/>{t('cloud.members.title')}</Button></div> : null}</div>
+          <div className={`${directoryOpen ? 'block' : 'hidden'} max-h-72 overflow-y-auto p-2 md:max-h-[28rem]`}>{filteredMembers.map(member => <button key={member.id} type="button" onClick={() => void startDirect(member)} disabled={busy} className="flex w-full items-center gap-3 rounded-lg p-3 text-start hover:bg-secondary disabled:opacity-50"><Avatar name={member.display_name} src={member.avatar_url ?? undefined} size="md"/><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{member.display_name}</span><span className="block truncate text-xs text-muted-foreground">{member.username ? `@${member.username}` : member.bio ?? t('cloud.members.member')}</span></span><MessageCircle className="size-4 text-muted-foreground"/></button>)}{!filteredMembers.length ? <p className="p-3 text-xs text-muted-foreground">{t('cloud.members.noMembers')}</p> : null}</div>
+          <div className="border-t border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold">{t('cloud.conversations.title')}</h3><span className="text-[11px] text-muted-foreground">{conversations.length}</span></div>{conversations.map(conversation => <button key={conversation.id} type="button" aria-current={activeId === conversation.id ? 'page' : undefined} onClick={() => { setActiveId(conversation.id); setMobileThreadOpen(true) }} className={activeId === conversation.id ? 'mb-1 flex w-full items-center gap-3 rounded-2xl bg-primary/10 p-3 text-start text-sm ring-1 ring-primary/25' : 'mb-1 flex w-full items-center gap-3 rounded-2xl p-3 text-start text-sm transition-colors hover:bg-secondary'}><Avatar name={conversation.title ?? peerNames[conversation.id] ?? t('cloud.conversations.private')} src={conversation.avatar_url ?? peerAvatars[conversation.id] ?? undefined} size="md"/><span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate font-semibold">{conversation.title ?? peerNames[conversation.id] ?? t('cloud.conversations.private')}</span>{conversationPreferences[conversation.id]?.pinned ? <Pin className="size-3.5 shrink-0 text-primary" aria-label={t('cloud.conversations.pinned')}/> : null}{conversationPreferences[conversation.id]?.muted ? <BellOff className="size-3.5 shrink-0 text-muted-foreground" aria-label={t('cloud.conversations.muted')}/> : null}</span><span className="shrink-0 text-[10px] text-muted-foreground">{new Date(conversation.last_message_at ?? conversation.created_at).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: '2-digit' })}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground">{conversationPreviews[conversation.id] || (conversation.kind === 'group' ? t('cloud.members.group') : t('cloud.conversations.private'))}</span></span>{unreadCounts[conversation.id] ? <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">{unreadCounts[conversation.id]}</span> : null}</button>)}{!conversations.length ? <div className="rounded-2xl bg-secondary/40 p-4 text-center"><p className="text-sm leading-6 text-muted-foreground">{t('cloud.conversations.emptyInbox')}</p><Button size="sm" variant="outline" className="mt-3 rounded-xl" onClick={() => setDirectoryOpen(true)}><Users data-icon="inline-start"/>{t('cloud.members.title')}</Button></div> : null}</div>
         </aside>
         <section className={`${mobileThreadOpen ? 'flex' : 'hidden md:flex'} min-h-[25rem] min-w-0 flex-col bg-background/30`}>
           {activeConversation ? <><header className="flex items-center gap-3 border-b border-border p-3 sm:p-4"><Button type="button" size="sm" variant="ghost" className="size-9 shrink-0 rounded-xl p-0 md:hidden" aria-label={t('chats.backToChats')} onClick={() => setMobileThreadOpen(false)}><ArrowLeft className="rtl:-scale-x-100"/></Button><div className="min-w-0 flex-1"><h3 className="truncate font-semibold">{activeConversation.title ?? peerNames[activeConversation.id] ?? t('cloud.conversations.private')}</h3><p className="text-xs text-muted-foreground">{realtimeConnected ? t('cloud.realtime.connected') : t('cloud.realtime.polling')} · {onlineUserIds.length} {t('cloud.realtime.online')}</p></div><div className="flex shrink-0 items-center gap-1"><Button size="sm" variant="ghost" className="size-8 rounded-lg p-0" aria-label={conversationPreferences[activeId]?.pinned ? t('cloud.conversations.unpin') : t('cloud.conversations.pin')} title={conversationPreferences[activeId]?.pinned ? t('cloud.conversations.unpin') : t('cloud.conversations.pin')} onClick={() => void toggleConversationPreference('pinned')}><Pin className={conversationPreferences[activeId]?.pinned ? 'size-4 fill-current text-primary' : 'size-4'}/></Button><Button size="sm" variant="ghost" className="size-8 rounded-lg p-0" aria-label={conversationPreferences[activeId]?.muted ? t('cloud.conversations.unmute') : t('cloud.conversations.mute')} title={conversationPreferences[activeId]?.muted ? t('cloud.conversations.unmute') : t('cloud.conversations.mute')} onClick={() => void toggleConversationPreference('muted')}><BellOff className={conversationPreferences[activeId]?.muted ? 'size-4 text-primary' : 'size-4'}/></Button>{activeConversation.kind === 'group' ? <Button size="sm" variant="outline" onClick={() => setManageGroupOpen(value => !value)}>{t('cloud.group.manageMembers')}</Button> : null}</div></header>
