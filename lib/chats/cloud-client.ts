@@ -75,7 +75,12 @@ async function authRequest(path: string, body: Record<string, unknown>) {
 }
 
 export async function requestEmailOtp(email: string, createUser = false) {
-  await authRequest('otp', { email: email.trim().toLowerCase(), create_user: createUser })
+  // Supabase uses the configured Site URL (often localhost in development) unless
+  // redirect_to is supplied. Bind the email link to the exact app origin in use,
+  // including the deployed Vercel preview domain.
+  const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+  const redirectQuery = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
+  await authRequest(`otp${redirectQuery}`, { email: email.trim().toLowerCase(), create_user: createUser })
 }
 
 export async function verifyEmailOtp(email: string, token: string): Promise<CloudAuthSession> {
