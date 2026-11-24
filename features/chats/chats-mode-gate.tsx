@@ -19,7 +19,7 @@ function SignedOutChats() {
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{t('chats.title')}</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">{t('chats.description')}</p>
         </div>
-        <Button variant="outline" size="icon" className="size-11 rounded-2xl" aria-label={t('cloud.auth.join')} onClick={openSignIn}><UsersRound className="size-5"/></Button>
+        <Button variant="outline" size="sm" className="size-11 rounded-2xl p-0" aria-label={t('cloud.auth.join')} onClick={openSignIn}><UsersRound className="size-5"/></Button>
       </header>
 
       <section className="relative overflow-hidden rounded-[2rem] border border-border bg-card shadow-panel">
