@@ -13,11 +13,15 @@ type Stage = 'loading' | 'checking' | 'auth' | 'profile' | 'activation' | 'ready
 type Profile = { id: string; display_name: string; username: string | null; bio: string | null }
 type Membership = { group_id: string; user_id: string }
 
+function subscribeHydration() { return () => {} }
+function getClientHydrated() { return true }
+function getServerHydrated() { return false }
+
 export function AppAuthGate({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(subscribeCloudSession, readCloudSession, () => null)
   const { locale } = usePreferences()
   const ar = locale === 'ar'
-  const [hydrated, setHydrated] = useState(false)
+  const hydrated = useSyncExternalStore(subscribeHydration, getClientHydrated, getServerHydrated)
   const [stage, setStage] = useState<Stage>('loading')
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
@@ -31,20 +35,22 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState('')
   const [retryCount, setRetryCount] = useState(0)
 
-  useEffect(() => setHydrated(true), [])
-
   const userId = session?.user.id
 
   useEffect(() => {
     if (!hydrated) return
     if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStage('auth')
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('')
       return
     }
 
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStage('checking')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setError('')
     const loadAccess = async () => {
       try {
