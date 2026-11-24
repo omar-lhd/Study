@@ -27,7 +27,7 @@ async function resolveAvatarProfiles(profiles: Profile[]): Promise<Profile[]> {
   const paths = [...new Set(profiles.map(profile => profile.avatar_url).filter((path): path is string => Boolean(path?.startsWith('avatars/'))))]
   if (!paths.length) return profiles
   let signed: Record<string, string> = {}
-  try { signed = await cloudStorageSignedUrls(paths, 86400) } catch { /* keep initials if Storage is temporarily unavailable */ }
+  try { signed = await cloudStorageSignedUrls(paths, 3600) } catch { /* keep initials if Storage is temporarily unavailable */ }
   return profiles.map(profile => profile.avatar_url?.startsWith('avatars/')
     ? { ...profile, avatar_storage_path: profile.avatar_url, avatar_url: signed[profile.avatar_url] ?? null }
     : profile)
@@ -158,7 +158,7 @@ export function CloudChatsExperience() {
         const convRows = await cloudRest<Conversation[]>(`conversations?select=id,kind,title,avatar_url,last_message_at,created_at&id=${apiFilter(ids)}&order=last_message_at.desc.nullslast`)
         const groupAvatarPaths = convRows.map(conversation => conversation.avatar_url).filter((path): path is string => Boolean(path?.startsWith('avatars/')))
         let signedConversationAvatars: Record<string, string> = {}
-        try { signedConversationAvatars = await cloudStorageSignedUrls(groupAvatarPaths, 86400) } catch { /* fall back to member initials */ }
+        try { signedConversationAvatars = await cloudStorageSignedUrls(groupAvatarPaths, 3600) } catch { /* fall back to member initials */ }
         const convs = convRows.map(conversation => conversation.avatar_url?.startsWith('avatars/')
           ? { ...conversation, avatar_url: signedConversationAvatars[conversation.avatar_url] ?? null }
           : conversation)
@@ -202,7 +202,7 @@ export function CloudChatsExperience() {
       } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setPeerAvatars({}); setConversationMembers({}); setConversationPreferences({}) }
       const now = new Date().toISOString()
       const storyRows = await cloudRest<Story[]>(`stories?select=id,owner_id,story_type,text_content,storage_path,audience,created_at,expires_at&status=eq.published&expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`)
-      const storiesWithUrls = await Promise.all(storyRows.map(async story => story.storage_path ? { ...story, signed_url: await cloudStorageSignedUrl(story.storage_path, 86400) } : story))
+      const storiesWithUrls = await Promise.all(storyRows.map(async story => story.storage_path ? { ...story, signed_url: await cloudStorageSignedUrl(story.storage_path, 3600) } : story))
       setStories(storiesWithUrls)
       if (storyRows.length) {
         const ownStoryIds = storyRows.filter(story => story.owner_id === session.user.id).map(story => story.id)

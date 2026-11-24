@@ -214,7 +214,7 @@ export async function cloudStorageUploadWithProgress(
   })
 }
 
-export async function cloudStorageSignedUrls(storagePaths: string[], expiresIn = 86400): Promise<Record<string, string>> {
+export async function cloudStorageSignedUrls(storagePaths: string[], expiresIn = 3600): Promise<Record<string, string>> {
   const paths = [...new Set(storagePaths.filter(Boolean))]
   if (!paths.length) return {}
   const { url, key } = config()
