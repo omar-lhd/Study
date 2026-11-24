@@ -8,9 +8,9 @@ import { Input, Label, Textarea } from '@/components/ui/field'
 import { EmptyState } from '@/components/ui/states'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageSignedUrls, cloudStorageUpload, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
+import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageSignedUrls, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
 import { formatMediaDuration, validateChatMedia, validateStoryImage } from '@/lib/chats/validation'
-import { cacheConversationMessages, enqueuePendingChatMessage, readCachedConversationMessages, readPendingChatMessages, removePendingChatMessage, readOfflineSnapshot, writeOfflineSnapshot, type PendingChatMessage } from '@/lib/chats/offline-store'
+import { cacheConversationMessages, enqueuePendingChatMessage, readCachedConversationMessages, readPendingChatMessages, readOfflineSnapshot, writeOfflineSnapshot, type PendingChatMessage } from '@/lib/chats/offline-store'
 
 type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; avatar_storage_path?: string | null; bio: string | null }
 type Conversation = { id: string; kind: 'direct' | 'group'; title: string | null; avatar_url: string | null; last_message_at: string | null; created_at: string }
