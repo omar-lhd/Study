@@ -74,8 +74,8 @@ async function authRequest(path: string, body: Record<string, unknown>) {
   return data
 }
 
-export async function requestEmailOtp(email: string) {
-  await authRequest('otp', { email: email.trim().toLowerCase(), create_user: false })
+export async function requestEmailOtp(email: string, createUser = false) {
+  await authRequest('otp', { email: email.trim().toLowerCase(), create_user: createUser })
 }
 
 export async function verifyEmailOtp(email: string, token: string): Promise<CloudAuthSession> {
