@@ -1,7 +1,7 @@
 export const ar = {
-  'app.name': 'مجتمع المذاكرة الخاص',
+  'app.name': 'Study',
   'app.nameShort': 'المذاكرة',
-  'app.workingName': 'اسم مؤقت',
+  'app.workingName': 'ذاكروا سوا، بهدوء',
   'app.skipToContent': 'تخطَّ إلى المحتوى',
 
   'nav.home': 'النهارده',
@@ -63,6 +63,15 @@ export const ar = {
   'home.goals.empty': 'حدد هدفك الأسبوعي وتابعه من هنا.',
 
   'chats.title': 'الشات',
+  'chats.welcome.kicker': 'مساحة الشلة',
+  'chats.welcome.title': 'مذاكرتك أحلى لما تبقوا مع بعض.',
+  'chats.welcome.description': 'مكان هادي يجمع صحاب المذاكرة: اسأل، شارك فكرة، تابع لحظات الشلة، وكمّلوا طريقكم سوا من غير دوشة.',
+  'chats.welcome.privateNote': 'الدخول للأعضاء المعتمدين بس. محادثاتك وملفاتك خاصة.',
+  'chats.welcome.artCaption': 'أفكار بتتقابل، وخطوة مذاكرة بتبدأ.',
+  'chats.welcome.membersTitle': 'شلتك الدراسية',
+  'chats.welcome.membersDescription': 'اتواصل مع أعضاء المجتمع المعتمدين وابدأ محادثة خاصة أو مجموعة مذاكرة.',
+  'chats.welcome.studyTitle': 'خليك قريب من هدفك',
+  'chats.welcome.studyDescription': 'شارك إنجاز صغير أو سؤال في المذاكرة، وخلي التواصل يخدم تركيزك.',
   'chats.description': 'مساحة هادية لمحادثات المذاكرة واللحظات المشتركة.',
   'chats.eyebrow': 'خليك على تواصل',
   'chats.list.title': 'المحادثات',
@@ -348,6 +357,13 @@ export const ar = {
   'settings.appearance.persisted': 'المظهر بيتحفظ على الجهاز ده.',
 
 
+  'cloud.auth.join': 'دخول المجتمع',
+  'cloud.auth.sending': 'بيتبعت…',
+  'cloud.auth.verifying': 'بنتأكد…',
+  'cloud.auth.sendCode': 'ابعت كود الدخول',
+  'cloud.auth.verifyCode': 'تأكيد الكود',
+  'cloud.auth.codePlaceholder': 'اكتب الكود اللي وصلك',
+  'cloud.auth.changeEmail': 'غيّر الإيميل',
   'cloud.auth.title': 'سجّل دخولك لشات المجتمع الخاص',
   'cloud.auth.description': 'استخدم إيميل حساب موجود ومعتمد في المجتمع. تسجيل الدخول لوحده مش بيدي عضوية.',
   'cloud.auth.email': 'الإيميل',
