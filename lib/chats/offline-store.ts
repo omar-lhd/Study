@@ -1,10 +1,11 @@
-export type PendingTextMessage = {
+export type PendingChatMessage = {
   id: string
   conversation_id: string
   sender_id: string
   content: string
   created_at: string
   reply_to_message_id: string | null
+  attachment?: { blob: Blob; file_name: string; mime_type: string; file_size: number; duration_ms: number | null }
 }
 
 type CachedRecord = { id: string; conversation_id: string; value: unknown; cached_at: number }
@@ -13,6 +14,7 @@ const DB_NAME = 'study-chat-offline'
 const DB_VERSION = 1
 const CACHE_STORE = 'messages'
 const OUTBOX_STORE = 'outbox'
+const SNAPSHOT_STORE = 'snapshots'
 
 function openDatabase(): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') return Promise.reject(new Error('Offline storage is not supported in this browser'))
@@ -24,6 +26,7 @@ function openDatabase(): Promise<IDBDatabase> {
         const store = db.createObjectStore(CACHE_STORE, { keyPath: 'id' })
         store.createIndex('conversation_id', 'conversation_id', { unique: false })
       }
+      if (!db.objectStoreNames.contains(SNAPSHOT_STORE)) db.createObjectStore(SNAPSHOT_STORE, { keyPath: 'key' })
       if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
         const store = db.createObjectStore(OUTBOX_STORE, { keyPath: 'id' })
         store.createIndex('conversation_id', 'conversation_id', { unique: false })
@@ -72,7 +75,7 @@ export async function readCachedConversationMessages<T>(conversationId: string):
   } finally { db.close() }
 }
 
-export async function enqueuePendingTextMessage(message: PendingTextMessage): Promise<void> {
+export async function enqueuePendingChatMessage(message: PendingChatMessage): Promise<void> {
   const db = await openDatabase()
   try {
     const tx = db.transaction(OUTBOX_STORE, 'readwrite')
@@ -85,7 +88,7 @@ export async function enqueuePendingTextMessage(message: PendingTextMessage): Pr
   } finally { db.close() }
 }
 
-export async function readPendingTextMessages(conversationId?: string): Promise<PendingTextMessage[]> {
+export async function readPendingChatMessages(conversationId?: string): Promise<PendingChatMessage[]> {
   const db = await openDatabase()
   try {
     const tx = db.transaction(OUTBOX_STORE, 'readonly')
@@ -93,11 +96,11 @@ export async function readPendingTextMessages(conversationId?: string): Promise<
     const request = conversationId
       ? store.index('conversation_id').getAll(IDBKeyRange.only(conversationId))
       : store.getAll()
-    return await requestResult<PendingTextMessage[]>(request)
+    return await requestResult<PendingChatMessage[]>(request)
   } finally { db.close() }
 }
 
-export async function removePendingTextMessage(id: string): Promise<void> {
+export async function removePendingChatMessage(id: string): Promise<void> {
   const db = await openDatabase()
   try {
     const tx = db.transaction(OUTBOX_STORE, 'readwrite')
@@ -107,5 +110,27 @@ export async function removePendingTextMessage(id: string): Promise<void> {
       tx.onerror = () => reject(tx.error ?? new Error('Could not remove sent message from outbox'))
       tx.onabort = () => reject(tx.error ?? new Error('Outbox transaction aborted'))
     })
+  } finally { db.close() }
+}
+
+export async function writeOfflineSnapshot<T>(key: string, value: T): Promise<void> {
+  const db = await openDatabase()
+  try {
+    const tx = db.transaction(SNAPSHOT_STORE, 'readwrite')
+    tx.objectStore(SNAPSHOT_STORE).put({ key, value, updated_at: Date.now() })
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Could not save offline snapshot'))
+      tx.onabort = () => reject(tx.error ?? new Error('Offline snapshot transaction aborted'))
+    })
+  } finally { db.close() }
+}
+
+export async function readOfflineSnapshot<T>(key: string): Promise<T | null> {
+  const db = await openDatabase()
+  try {
+    const tx = db.transaction(SNAPSHOT_STORE, 'readonly')
+    const row = await requestResult<{ key: string; value: T } | undefined>(tx.objectStore(SNAPSHOT_STORE).get(key))
+    return row?.value ?? null
   } finally { db.close() }
 }
