@@ -358,9 +358,6 @@ export const ar = {
 
 
   'cloud.auth.join': 'دخول المجتمع',
-  'cloud.auth.sending': 'بيتبعت…',
-  'cloud.auth.verifying': 'بنتأكد…',
-  'cloud.auth.sendCode': 'ابعت كود الدخول',
   'cloud.auth.verifyCode': 'تأكيد الكود',
   'cloud.auth.codePlaceholder': 'اكتب الكود اللي وصلك',
   'cloud.auth.changeEmail': 'غيّر الإيميل',
