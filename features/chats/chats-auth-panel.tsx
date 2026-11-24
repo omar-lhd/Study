@@ -25,10 +25,6 @@ export function ChatsAuthPanel() {
     return () => window.removeEventListener('study:open-auth', show)
   }, [])
 
-  useEffect(() => {
-    if (session) setOpen(false)
-  }, [session])
-
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setBusy(true); setError(''); setStatus('')
@@ -46,6 +42,7 @@ export function ChatsAuthPanel() {
     setBusy(true); setError(''); setStatus('')
     try {
       await verifyEmailOtp(email, code)
+      setOpen(false)
       setStatus(t('cloud.auth.signedInStatus'))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.verifyCode'))
@@ -67,7 +64,7 @@ export function ChatsAuthPanel() {
         </Button>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open && !session} onOpenChange={setOpen}>
         <DialogContent className="max-w-md rounded-3xl border-border bg-elevated p-5 sm:p-7">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary"><ShieldCheck className="size-6" /></div>

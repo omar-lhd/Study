@@ -184,7 +184,7 @@ export function CloudChatsExperience() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.loadChats'))
     }
-  }, [session, activeId])
+  }, [session, activeId, t])
 
   // Async data loading is the external-system synchronization this effect exists for.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -232,7 +232,7 @@ export function CloudChatsExperience() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.loadMessages'))
     }
-  }, [activeId, session])
+  }, [activeId, session, t])
 
   // Fetch messages when the selected conversation changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
