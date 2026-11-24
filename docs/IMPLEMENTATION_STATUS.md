@@ -12,9 +12,17 @@
 
 Working settings: Language and Appearance only. Every other control or section is labelled as coming later.
 
-## Planned (not implemented)
+## Phase 1 — Identity, Chats and Stories (in progress on `phase-1/identity-chats-stories`)
 
-Authentication and profiles, groups and invites (Supabase integration), messaging, academic CRUD, study sessions and rooms, XP and achievements, notifications and prayer features, calls, stories, homework help, whiteboard, Capacitor Android build. Package letters beyond A and B are not assigned in this repository yet; the UI says "a later package".
+A connected implementation is available on the Phase 1 branch and Draft PR #2. It includes Supabase Email OTP/session handling, profile metadata and membership-gated member discovery, direct/group conversations, persistent messages and operations, private attachments/voice notes, Realtime typing/presence/reconnect, Stories with audience/viewers/reactions/expiry, and in-app notifications. Nine additive migrations were applied to the verified Supabase project and security/RLS checks were performed. Existing local Notes/Story drafts and Sessions remain preserved.
+
+Preview deployment: `https://study-5wvfbfcjg-omar-947f.vercel.app` (READY at commit `d49ec1760c30c752c1280c1b1fa0ea1fbde069fa`; Vercel SSO may require team sign-in). GitHub Actions CI run #81 passed typecheck, lint and build.
+
+Phase 1 is **not accepted yet**: real OTP delivery, approved second-member access, two-account/two-device behavior, live Realtime/Storage, visual responsive/accessibility QA, and Notion/Figma review remain outstanding. Keep PR #2 draft and unmerged until these checks pass.
+
+## Planned (not implemented in Phase 1)
+
+Academic CRUD, study sessions and rooms, XP and achievements, prayer features, calls, homework help, whiteboard, and Capacitor Android build remain future scope. Preserve the full product vision in `PRODUCT_VISION.md`; deferred features are not removed.
 
 ## Package A acceptance criteria
 
@@ -22,7 +30,7 @@ Correct branch; existing work preserved; dev server starts; build, typecheck, li
 
 ## Known limitations and open questions
 
-- The workspace used for Package A was an empty directory with no `.git`, so no pre-existing Supabase SQL, migrations or CI were present to preserve, and branch/commit state could not be verified. Git branching (`feature/foundation`) must be handled in GitHub.
+- Package A's original workspace snapshot was empty and lacked `.git`; the current canonical repository and Phase 1 branch are now verified in GitHub. Historical Package A constraints remain recorded here, but do not describe the current Phase 1 branch.
 - Greeting and date use the fixed `Africa/Cairo` zone (`config/app.ts`) until profiles carry a time zone.
 - Theme is dark/light only; no "system" option yet.
 - Brand identity, final logo and PWA icon set are undecided; the current icon is a neutral placeholder.
