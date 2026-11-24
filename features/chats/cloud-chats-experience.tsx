@@ -8,13 +8,14 @@ import { Input, Label, Textarea } from '@/components/ui/field'
 import { EmptyState } from '@/components/ui/states'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageSignedUrls, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
+import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageSignedUrls, cloudStorageUpload, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
 import { formatMediaDuration, validateChatMedia, validateStoryImage } from '@/lib/chats/validation'
+import { cacheConversationMessages, enqueuePendingChatMessage, readCachedConversationMessages, readPendingChatMessages, removePendingChatMessage, type PendingChatMessage } from '@/lib/chats/offline-store'
 
 type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; avatar_storage_path?: string | null; bio: string | null }
 type Conversation = { id: string; kind: 'direct' | 'group'; title: string | null; avatar_url: string | null; last_message_at: string | null; created_at: string }
 type Membership = { conversation_id: string; last_read_at: string | null; muted: boolean; pinned: boolean }
-type Message = { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; reply_to_message_id: string | null; deleted_for_everyone: boolean; edited_at: string | null; pinned_at: string | null }
+type Message = { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; reply_to_message_id: string | null; deleted_for_everyone: boolean; edited_at: string | null; pinned_at: string | null; pending?: boolean; pending_attachment?: boolean; message_type?: 'text' | 'image' | 'file' | 'voice' }
 type Story = { id: string; owner_id: string; story_type: 'text' | 'image'; text_content: string; storage_path: string | null; signed_url?: string; audience: 'community' | 'selected-members'; created_at: string; expires_at: string }
 type CloudAttachment = { id: string; message_id: string; storage_path: string; file_name: string; mime_type: string; file_size: number; signed_url: string }
 type CloudNotification = { id: string; actor_id: string | null; notification_type: string; payload: Record<string, unknown>; read_at: string | null; created_at: string }
@@ -231,8 +232,14 @@ export function CloudChatsExperience() {
   const loadMessages = useCallback(async () => {
     if (!activeId || !session) { setMessages([]); setMessageAttachments({}); return }
     try {
+      const cachedRows = await readCachedConversationMessages<Message>(activeId).catch(() => [])
+      const queuedRows = await readPendingChatMessages(activeId).catch(() => [])
+      const queuedMessages: Message[] = queuedRows.map(item => ({ id: item.id, conversation_id: item.conversation_id, sender_id: item.sender_id, content: item.content, created_at: item.created_at, reply_to_message_id: item.reply_to_message_id, deleted_for_everyone: false, edited_at: null, pinned_at: null, pending: true, pending_attachment: Boolean(item.attachment), message_type: item.attachment ? (item.attachment.mime_type.startsWith('image/') ? 'image' : item.attachment.mime_type.startsWith('audio/') ? 'voice' : 'file') : 'text' }))
+      if (cachedRows.length || queuedMessages.length) setMessages([...cachedRows, ...queuedMessages].sort((a, b) => a.created_at.localeCompare(b.created_at)))
+      if (!navigator.onLine) { setMessageAttachments({}); return }
       const rows = await cloudRest<Message[]>(`messages?select=id,conversation_id,sender_id,content,created_at,reply_to_message_id,deleted_for_everyone,edited_at,pinned_at&conversation_id=eq.${activeId}&order=created_at.asc&limit=500`)
-      setMessages(rows)
+      void cacheConversationMessages(rows).catch(() => {})
+      setMessages([...rows, ...queuedMessages].sort((a, b) => a.created_at.localeCompare(b.created_at)))
       if (rows.length) {
         const latestMessage = rows.at(-1)
         if (latestMessage) {
@@ -432,17 +439,24 @@ export function CloudChatsExperience() {
     }
     setBusy(true); setError('')
     let uploadedPath: string | null = null
-    let messageId: string | null = null
+    const messageId = crypto.randomUUID()
     const voiceExtension = voiceBlob?.type.includes('mp4') ? 'm4a' : voiceBlob?.type.includes('ogg') ? 'ogg' : 'webm'
     const mediaName = voiceBlob ? `voice-note-${Date.now()}.${voiceExtension}` : selectedFile?.name ?? ''
     const mediaType = voiceBlob ? 'voice' : selectedFile?.type.startsWith('image/') ? 'image' : 'file'
     try {
+      if (!navigator.onLine) {
+        const pending: PendingChatMessage = { id: messageId, conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), created_at: new Date().toISOString(), reply_to_message_id: replyToMessageId, attachment: media ? { blob: media, file_name: mediaName, mime_type: media.type || 'application/octet-stream', file_size: media.size, duration_ms: voiceBlob ? voiceDurationMs : null } : undefined }
+        await enqueuePendingChatMessage(pending)
+        setMessages(current => [...current.filter(item => item.id !== messageId), { id: messageId, conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), created_at: pending.created_at, reply_to_message_id: replyToMessageId, deleted_for_everyone: false, edited_at: null, pinned_at: null, pending: true, pending_attachment: Boolean(media), message_type: media ? mediaType : 'text' }])
+        setMessageText(''); setReplyToMessageId(null); setSelectedFile(null); setVoiceBlob(null); setVoiceDurationMs(0)
+        setStatus(locale === 'ar' ? 'اتحفظت الرسالة على الجهاز وهتتبعت أول ما الإنترنت يرجع.' : 'Message saved on this device and will send when you reconnect.')
+        return
+      }
       const inserted = await cloudRest<{ id: string }[]>('messages?select=id', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), message_type: media ? mediaType : 'text', reply_to_message_id: replyToMessageId }),
+        body: JSON.stringify({ id: messageId, conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), message_type: media ? mediaType : 'text', reply_to_message_id: replyToMessageId }),
       })
-      messageId = inserted[0]?.id ?? null
       if (!messageId) throw new Error('The database did not return the new message id')
       if (media) {
         const safeName = mediaName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || 'attachment'
@@ -465,8 +479,20 @@ export function CloudChatsExperience() {
       await loadMessages()
       await loadData()
     } catch (cause) {
+      const causeMessage = cause instanceof Error ? cause.message.toLowerCase() : ''
+      const networkFailure = !navigator.onLine || cause instanceof TypeError || /network|fetch failed|connection|offline|timed out/.test(causeMessage)
+      if (networkFailure) {
+        const pending: PendingChatMessage = { id: messageId, conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), created_at: new Date().toISOString(), reply_to_message_id: replyToMessageId, attachment: media ? { blob: media, file_name: mediaName, mime_type: media.type || 'application/octet-stream', file_size: media.size, duration_ms: voiceBlob ? voiceDurationMs : null } : undefined }
+        try {
+          await enqueuePendingChatMessage(pending)
+          setMessages(current => [...current.filter(item => item.id !== messageId), { id: messageId, conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), created_at: pending.created_at, reply_to_message_id: replyToMessageId, deleted_for_everyone: false, edited_at: null, pinned_at: null, pending: true, pending_attachment: Boolean(media), message_type: media ? mediaType : 'text' }])
+          setMessageText(''); setReplyToMessageId(null); setSelectedFile(null); setVoiceBlob(null); setVoiceDurationMs(0)
+          setStatus(locale === 'ar' ? 'اتحفظت الرسالة على الجهاز وهتتبعت أول ما الإنترنت يرجع.' : 'Message saved on this device and will send when you reconnect.')
+          return
+        } catch { setError(locale === 'ar' ? 'فشل حفظ الرسالة محليًا. سيب الشاشة مفتوحة وحاول تاني.' : 'Could not save this message offline. Keep this screen open and retry.') }
+      }
       if (uploadedPath) await cloudStorageRemove(uploadedPath).catch(() => {})
-      if (messageId) await cloudRest<void>(`messages?id=eq.${messageId}`, { method: 'DELETE' }).catch(() => {})
+      await cloudRest<void>(`messages?id=eq.${messageId}`, { method: 'DELETE' }).catch(() => {})
       setError(cause instanceof Error && cause.name === 'AbortError' ? t('cloud.messages.uploadCancelled') : cause instanceof Error ? cause.message : t('cloud.error.sendMessage'))
     } finally { uploadAbortRef.current = null; setUploadProgress(null); setUploadKind(null); setBusy(false) }
   }
