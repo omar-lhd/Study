@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { usePreferences } from '@/components/providers/preferences-provider'
 import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageSignedUrls, cloudStorageUpload, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
 import { formatMediaDuration, validateChatMedia, validateStoryImage } from '@/lib/chats/validation'
-import { cacheConversationMessages, enqueuePendingChatMessage, readCachedConversationMessages, readPendingChatMessages, removePendingChatMessage, type PendingChatMessage } from '@/lib/chats/offline-store'
+import { cacheConversationMessages, enqueuePendingChatMessage, readCachedConversationMessages, readPendingChatMessages, removePendingChatMessage, readOfflineSnapshot, writeOfflineSnapshot, type PendingChatMessage } from '@/lib/chats/offline-store'
 
 type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; avatar_storage_path?: string | null; bio: string | null }
 type Conversation = { id: string; kind: 'direct' | 'group'; title: string | null; avatar_url: string | null; last_message_at: string | null; created_at: string }
@@ -147,13 +147,26 @@ export function CloudChatsExperience() {
     setError('')
     setDataLoading(true)
     try {
+      const [cachedPeople, cachedConversations, cachedStories, cachedNotifications] = await Promise.all([
+        readOfflineSnapshot<{ profile: Profile | null; members: Profile[] }>(`chat:people:${session.user.id}`).catch(() => null),
+        readOfflineSnapshot<{ conversations: Conversation[]; unreadCounts: Record<string, number>; preferences: Record<string, { pinned: boolean; muted: boolean }>; previews: Record<string, string>; peerNames: Record<string, string>; peerAvatars: Record<string, string>; conversationMembers: Record<string, Array<{ user_id: string; role: string }>> }>(`chat:conversations:${session.user.id}`).catch(() => null),
+        readOfflineSnapshot<Story[]>(`chat:stories:${session.user.id}`).catch(() => null),
+        readOfflineSnapshot<CloudNotification[]>(`chat:notifications:${session.user.id}`).catch(() => null),
+      ])
+      if (cachedPeople) { setProfile(cachedPeople.profile); setMembers(cachedPeople.members) }
+      if (cachedConversations) { setConversations(cachedConversations.conversations); setUnreadCounts(cachedConversations.unreadCounts); setConversationPreferences(cachedConversations.preferences); setConversationPreviews(cachedConversations.previews); setPeerNames(cachedConversations.peerNames); setPeerAvatars(cachedConversations.peerAvatars); setConversationMembers(cachedConversations.conversationMembers); setActiveId(current => current || cachedConversations.conversations[0]?.id || '') }
+      if (cachedStories) setStories(cachedStories)
+      if (cachedNotifications) setNotifications(cachedNotifications)
+      if (!navigator.onLine) return
       const meRows = await cloudRest<Profile[]>(`profiles?select=id,display_name,username,avatar_url,bio&id=eq.${session.user.id}&limit=1`)
       const me = (await resolveAvatarProfiles(meRows))[0] ?? null
       setProfile(me)
       if (me) { setProfileName(me.display_name ?? ''); setProfileUsername(me.username ?? ''); setProfileBio(me.bio ?? '') }
       const directoryRows = await cloudRest<Profile[]>('profiles?select=id,display_name,username,avatar_url,bio&order=display_name.asc&limit=100')
       const directory = await resolveAvatarProfiles(directoryRows)
-      setMembers(directory.filter(item => item.id !== session.user.id))
+      const otherMembers = directory.filter(item => item.id !== session.user.id)
+      setMembers(otherMembers)
+      void writeOfflineSnapshot(`chat:people:${session.user.id}`, { profile: me, members: otherMembers }).catch(() => {})
       const memberRows = await cloudRest<Membership[]>(`conversation_members?select=conversation_id,last_read_at,muted,pinned&user_id=eq.${session.user.id}`)
       setConversationPreferences(Object.fromEntries(memberRows.map(row => [row.conversation_id, { pinned: row.pinned, muted: row.muted }])))
       if (memberRows.length) {
@@ -186,10 +199,10 @@ export function CloudChatsExperience() {
         for (const row of allMembers) memberMap[row.conversation_id] = [...(memberMap[row.conversation_id] ?? []), { user_id: row.user_id, role: row.role }]
         setConversationMembers(memberMap)
         const peerIds = [...new Set(allMembers.map(row => row.user_id).filter(id => id !== session.user.id))]
+        const names: Record<string, string> = {}
+        const avatars: Record<string, string> = {}
         if (peerIds.length) {
           const profilesById = new Map([...directory, ...(me ? [me] : [])].map(item => [item.id, item]))
-          const names: Record<string, string> = {}
-          const avatars: Record<string, string> = {}
           for (const row of allMembers) {
             const peer = profilesById.get(row.user_id)
             if (peer) {
@@ -200,13 +213,15 @@ export function CloudChatsExperience() {
           setPeerNames(names)
           setPeerAvatars(avatars)
         } else { setPeerNames({}); setPeerAvatars({}) }
+        void writeOfflineSnapshot(`chat:conversations:${session.user.id}`, { conversations: sortedConversations, unreadCounts: Object.fromEntries(unreadPairs), preferences: Object.fromEntries(memberRows.map(row => [row.conversation_id, { pinned: row.pinned, muted: row.muted }])), previews, peerNames: names, peerAvatars: avatars, conversationMembers: memberMap }).catch(() => {})
         const firstConversation = convs[0]
         if (firstConversation) setActiveId(current => current || firstConversation.id)
-      } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setPeerAvatars({}); setConversationMembers({}); setConversationPreferences({}) }
+      } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setPeerAvatars({}); setConversationMembers({}); setConversationPreferences({}); void writeOfflineSnapshot(`chat:conversations:${session.user.id}`, { conversations: [], unreadCounts: {}, preferences: {}, previews: {}, peerNames: {}, peerAvatars: {}, conversationMembers: {} }).catch(() => {}) }
       const now = new Date().toISOString()
       const storyRows = await cloudRest<Story[]>(`stories?select=id,owner_id,story_type,text_content,storage_path,audience,created_at,expires_at&status=eq.published&expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`)
       const storiesWithUrls = await Promise.all(storyRows.map(async story => story.storage_path ? { ...story, signed_url: await cloudStorageSignedUrl(story.storage_path, 3600) } : story))
       setStories(storiesWithUrls)
+      void writeOfflineSnapshot(`chat:stories:${session.user.id}`, storiesWithUrls).catch(() => {})
       if (storyRows.length) {
         const ownStoryIds = storyRows.filter(story => story.owner_id === session.user.id).map(story => story.id)
         try {
@@ -218,6 +233,7 @@ export function CloudChatsExperience() {
       } else setSeenStoryIds([])
       const notificationRows = await cloudRest<CloudNotification[]>(`in_app_notifications?select=id,actor_id,notification_type,payload,read_at,created_at&recipient_id=eq.${session.user.id}&order=created_at.desc&limit=30`)
       setNotifications(notificationRows)
+      void writeOfflineSnapshot(`chat:notifications:${session.user.id}`, notificationRows).catch(() => {})
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.loadChats'))
     } finally {
