@@ -37,6 +37,8 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
   const userId = session?.user.id
 
+  /* Auth/session and access checks synchronize React with the external Supabase session. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!hydrated) return
     if (!userId) {
@@ -100,6 +102,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     void loadAccess()
     return () => { active = false }
   }, [hydrated, userId, ar, retryCount])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
