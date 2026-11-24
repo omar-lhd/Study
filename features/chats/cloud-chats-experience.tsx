@@ -191,7 +191,7 @@ export function CloudChatsExperience() {
             const peer = profilesById.get(row.user_id)
             if (peer) {
               names[row.conversation_id] = names[row.conversation_id] ? `${names[row.conversation_id]}, ${peer.display_name}` : peer.display_name
-              if (peer.avatar_url) avatars[row.conversation_id] = peer.avatar_url
+              if (peer.avatar_url && convs.find(conversation => conversation.id === row.conversation_id)?.kind !== 'group') avatars[row.conversation_id] = peer.avatar_url
             }
           }
           setPeerNames(names)
@@ -770,7 +770,25 @@ export function CloudChatsExperience() {
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-semibold">{t('cloud.stories.title')}</h3><p className="text-xs text-muted-foreground">{t('cloud.stories.publishedSubtitle')}</p></div><Button size="sm" variant="outline" onClick={() => setStoryComposer(value => !value)}><Plus data-icon="inline-start" />{t('cloud.stories.add')}</Button></div>
         {storyComposer ? <form onSubmit={publishTextStory} className="mb-3 grid gap-2"><Label htmlFor="cloud-story">{t('cloud.stories.textCaption')}</Label><Textarea id="cloud-story" value={storyText} onChange={e => setStoryText(e.target.value)} maxLength={500} placeholder={t('cloud.stories.placeholder')} disabled={busy}/><Label htmlFor="cloud-story-image">{t('cloud.stories.image')}</Label><input id="cloud-story-image" type="file" accept="image/*" disabled={busy} onChange={e => setStoryImage(e.target.files?.[0] ?? null)} className="text-xs"/>{storyImage ? <p className="text-xs text-muted-foreground">{storyImage.name} · <button type="button" onClick={() => setStoryImage(null)}>{t('cloud.stories.remove')}</button></p> : null}{uploadProgress !== null && uploadKind === 'story' ? <div className="flex items-center gap-2 rounded-xl bg-secondary/50 p-2"><progress value={uploadProgress} max={100} aria-label={t('cloud.messages.uploadProgress')} className="h-2 min-w-0 flex-1"/><span className="text-xs tabular-nums">{uploadProgress}%</span><Button type="button" size="sm" variant="ghost" onClick={cancelUpload}>{t('cloud.messages.cancelUpload')}</Button></div> : null}<fieldset disabled={busy} className="grid gap-2 rounded-lg border border-border p-3"><legend className="px-1 text-xs font-semibold">{t('cloud.stories.audience')}</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'community'} onChange={() => setStoryAudience('community')}/>{t('cloud.stories.community')}</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={storyAudience === 'selected-members'} onChange={() => setStoryAudience('selected-members')}/>{t('cloud.stories.selected')}</label>{storyAudience === 'selected-members' ? <div className="max-h-32 overflow-y-auto">{filteredMembers.map(member => <label key={member.id} className="flex items-center gap-2 py-1 text-xs"><input type="checkbox" checked={storyAudienceMemberIds.includes(member.id)} onChange={e => setStoryAudienceMemberIds(current => e.target.checked ? [...current, member.id] : current.filter(id => id !== member.id))}/><span>{member.display_name}</span></label>)}</div> : null}</fieldset><Button type="submit" disabled={busy || (!storyText.trim() && !storyImage) || (storyAudience === 'selected-members' && !storyAudienceMemberIds.length)}>{t('cloud.stories.publish')}</Button></form> : null}
-        {stories.length ? <div className="flex gap-4 overflow-x-auto pb-2 pt-1">{stories.map(story => <button key={story.id} type="button" aria-label={`${members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')} · ${seenStoryIds.includes(story.id) ? t('cloud.stories.seen') : t('cloud.stories.unseen')}`} onClick={() => void openStory(story)} className="group flex w-[4.5rem] shrink-0 flex-col items-center gap-2 text-center"><span className={`flex size-[4.35rem] items-center justify-center rounded-full p-[3px] shadow-panel transition-transform group-hover:scale-[1.03] ${seenStoryIds.includes(story.id) ? 'bg-border' : 'bg-gradient-to-br from-primary via-primary/75 to-accent'}`}><span className="flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-card bg-secondary">{story.signed_url ? <img src={story.signed_url} alt="" className="size-full object-cover" loading="lazy"/> : <Avatar name={members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')} src={members.find(item => item.id === story.owner_id)?.avatar_url ?? (story.owner_id === session.user.id ? profile?.avatar_url ?? undefined : undefined)} size="lg" className="size-full border-2 border-card"/>}</span></span><span className="w-full truncate text-xs font-medium">{members.find(item => item.id === story.owner_id)?.display_name ?? t('cloud.members.member')}</span></button>)}</div> : <p className="text-sm text-muted-foreground">{t('cloud.stories.noStories')}</p>}
+        {stories.length ? (
+          <div className="flex gap-4 overflow-x-auto pb-2 pt-1">
+            {stories.map(story => {
+              const owner = story.owner_id === session.user.id ? profile : members.find(item => item.id === story.owner_id)
+              const ownerName = story.owner_id === session.user.id ? t('cloud.stories.you') : owner?.display_name ?? t('cloud.members.member')
+              const seen = seenStoryIds.includes(story.id)
+              return (
+                <button key={story.id} type="button" aria-label={`${ownerName} · ${seen ? t('cloud.stories.seen') : t('cloud.stories.unseen')}`} onClick={() => void openStory(story)} className="group flex w-[4.5rem] shrink-0 flex-col items-center gap-2 text-center">
+                  <span className={`flex size-[4.35rem] items-center justify-center rounded-full p-[3px] shadow-panel transition-transform group-hover:scale-[1.03] ${seen ? 'bg-border' : 'bg-gradient-to-br from-primary via-primary/75 to-accent'}`}>
+                    <span className="flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-card bg-secondary">
+                      {story.signed_url ? <img src={story.signed_url} alt="" className="size-full object-cover" loading="lazy"/> : <Avatar name={ownerName} src={owner?.avatar_url ?? undefined} size="lg" className="size-full border-2 border-card"/>}
+                    </span>
+                  </span>
+                  <span className="w-full truncate text-xs font-medium">{ownerName}</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : <p className="text-sm text-muted-foreground">{t('cloud.stories.noStories')}</p>}
       </section>
 
       <div className="grid min-h-[30rem] overflow-hidden rounded-xl border border-border bg-card md:grid-cols-[18rem_minmax(0,1fr)]">
