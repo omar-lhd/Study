@@ -30,9 +30,11 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => setHydrated(true), [])
 
+  const userId = session?.user.id
+
   useEffect(() => {
     if (!hydrated) return
-    if (!session) {
+    if (!userId) {
       setStage('auth')
       setError('')
       return
@@ -44,8 +46,8 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     const loadAccess = async () => {
       try {
         const [profiles, memberships] = await Promise.all([
-          cloudRest<Profile[]>(`profiles?select=id,display_name,username,bio&id=eq.${session.user.id}&limit=1`),
-          cloudRest<Membership[]>(`group_members?select=group_id,user_id&user_id=eq.${session.user.id}&limit=1`),
+          cloudRest<Profile[]>(`profiles?select=id,display_name,username,bio&id=eq.${userId}&limit=1`),
+          cloudRest<Membership[]>(`group_members?select=group_id,user_id&user_id=eq.${userId}&limit=1`),
         ])
         if (!active) return
         const profile = profiles[0]
@@ -71,7 +73,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     }
     void loadAccess()
     return () => { active = false }
-  }, [hydrated, session?.user.id, ar])
+  }, [hydrated, userId, ar])
 
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
