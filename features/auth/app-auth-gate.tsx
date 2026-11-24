@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
 import { cloudRest, readCloudSession, requestEmailOtp, signOutCloud, subscribeCloudSession, verifyEmailOtp } from '@/lib/chats/cloud-client'
+import { readOfflineSnapshot, writeOfflineSnapshot } from '@/lib/chats/offline-store'
 
 type Stage = 'loading' | 'checking' | 'auth' | 'profile' | 'activation' | 'ready'
 type Profile = { id: string; display_name: string; username: string | null; bio: string | null }
@@ -45,6 +46,12 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     setError('')
     const loadAccess = async () => {
       try {
+        if (!navigator.onLine) {
+          const cached = await readOfflineSnapshot<{ approved: boolean; profileReady: boolean; checkedAt: number }>(`auth-access:${userId}`).catch(() => null)
+          if (active && cached?.approved && cached.profileReady && Date.now() - cached.checkedAt < 7 * 24 * 60 * 60 * 1000) setStage('ready')
+          else if (active) setStage('activation')
+          return
+        }
         const [profiles, memberships] = await Promise.all([
           cloudRest<Profile[]>(`profiles?select=id,display_name,username,bio&id=eq.${userId}&limit=1`),
           cloudRest<Membership[]>(`group_members?select=group_id,user_id&user_id=eq.${userId}&limit=1`),
@@ -58,9 +65,15 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           setStage('profile')
           return
         }
-        setStage(memberships.length ? 'ready' : 'activation')
+        const approved = memberships.length > 0
+        void writeOfflineSnapshot(`auth-access:${userId}`, { approved, profileReady: true, checkedAt: Date.now() }).catch(() => {})
+        setStage(approved ? 'ready' : 'activation')
       } catch (cause) {
         if (!active) return
+        if (!navigator.onLine) {
+          const cached = await readOfflineSnapshot<{ approved: boolean; profileReady: boolean; checkedAt: number }>(`auth-access:${userId}`).catch(() => null)
+          if (cached?.approved && cached.profileReady && Date.now() - cached.checkedAt < 7 * 24 * 60 * 60 * 1000) { setStage('ready'); return }
+        }
         const message = cause instanceof Error ? cause.message : ''
         if (/expired|refresh token|invalid jwt/i.test(message)) {
           signOutCloud()
