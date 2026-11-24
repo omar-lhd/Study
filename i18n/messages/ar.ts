@@ -387,6 +387,7 @@ export const ar = {
   'cloud.profile.bio': 'نبذة',
   'cloud.profile.save': 'حفظ الملف الشخصي',
   'cloud.profile.saved': 'تم حفظ الملف الشخصي.',
+  'cloud.stories.you': 'قصتك',
   'cloud.stories.previous': 'اللي قبلها',
   'cloud.stories.next': 'اللي بعدها',
   'cloud.stories.seen': 'تمت مشاهدتها',

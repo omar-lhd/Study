@@ -390,6 +390,7 @@ export const en: Record<MessageKey, string> = {
   'cloud.profile.bio': 'Bio',
   'cloud.profile.save': 'Save profile',
   'cloud.profile.saved': 'Profile saved.',
+  'cloud.stories.you': 'Your story',
   'cloud.stories.previous': 'Previous story',
   'cloud.stories.next': 'Next story',
   'cloud.stories.seen': 'Seen',
