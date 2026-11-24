@@ -48,7 +48,7 @@ Security hardening narrows client column grants so clients cannot self-promote c
 - Supabase Security Advisor still reports the intentionally exposed authenticated SECURITY DEFINER RPCs (they perform server-side authorization checks), the private `invite_codes` table with no direct policy (invite redemption is RPC-only), and disabled leaked-password protection (the current sign-in path is email OTP). These are documented residuals, not claimed as zero findings.
 - No real two-account/device acceptance test has been completed yet.
 - OTP email delivery/configuration has not been verified against an approved member inbox.
-- Vercel preview is not yet available: the Vercel team/project requires user authorization, and the app's public Supabase environment variables still need to be verified in the preview environment.
+- Vercel preview is now available for the connected `study` project on the Phase 1 branch. Latest verified deployment at review time: `https://study-5wvfbfcjg-omar-947f.vercel.app` (branch alias: `https://study-git-phase-1-identity-chats-stories-omar-947f.vercel.app`), commit `d49ec1760c30c752c1280c1b1fa0ea1fbde069fa`, state `READY`. GitHub Actions CI run #81 passed. Vercel SSO protection is enabled for preview deployments; testers may need to sign in to the connected team. Environment variable names/configuration are present for the preview target; secret values were not read or logged. This confirms deployment/build only, not live authentication or end-to-end messaging.
 
 ## Remaining Phase 1 work / acceptance blockers
 - Confirm Notion handoff archive and original Master Project Record/Execution Plan review; they were not readable through the available connector in this execution context.
@@ -61,7 +61,7 @@ Security hardening narrows client column grants so clients cannot self-promote c
 - Keep the draft PR unmerged until these live acceptance checks pass.
 
 ## Required next actions
-1. Obtain user authorization for the existing Vercel team and configure/verify the preview environment variables.
+1. Use the Phase 1 preview deployment and complete live account/device acceptance tests.
 2. Confirm approved membership for the second test account through the existing community process.
 3. Run the two-account acceptance suite and fix any live auth, RLS, Storage or Realtime issues.
 4. Complete Notion/Figma review and final visual/accessibility QA.
