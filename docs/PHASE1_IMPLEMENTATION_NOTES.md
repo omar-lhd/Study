@@ -39,7 +39,7 @@ Security hardening narrows client column grants so clients cannot self-promote c
 - Stories support text/image publishing, community or selected-member audience, 24-hour active listing, viewer dialog, owner-only viewer list, view recording and reactions.
 - In-app notification list supports marking read and opening related conversations or Story viewers. Message notifications are created by the existing database trigger; Story reaction notifications are now created by the added trigger.
 - Cloud UI and OTP panel include English and Egyptian Arabic translation strings.
-- UI/UX refresh on the Phase 1 branch: Study / Night Desk brand tokens (ink-plum, saffron, lilac), an original book-and-orbit mark, updated app icon, Manrope + IBM Plex Sans Arabic, compact OTP dialog, branded signed-out welcome instead of default local Notes, circular Story rail, conversation-first inbox and mobile full-screen thread/back navigation. No real member or conversation data is fabricated.
+- UI/UX refresh on the Phase 1 branch: Study / Night Desk brand tokens (ink-plum, saffron, lilac), an original book-and-orbit mark, updated app icon, Manrope + IBM Plex Sans Arabic, compact OTP dialog, branded signed-out welcome instead of default local Notes, circular Story rail, conversation-first inbox and mobile full-screen thread/back navigation. Cloud Chats now includes RLS-scoped message search, Story previous/next navigation with seen/unseen rings, and conversation pin/mute controls. No real member or conversation data is fabricated.
 - Existing local Private Notes and local Story drafts remain available while signed out. Existing Sessions code/data was not changed.
 
 ## Verification
