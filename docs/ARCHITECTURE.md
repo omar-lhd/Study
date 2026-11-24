@@ -42,7 +42,7 @@ Dark is default; Light is a separate designed palette. Tokens are CSS variables 
 
 The current visual direction is **Study / Night Desk**: an editorial learning identity built around ink-plum surfaces, warm saffron focus, and a restrained lilac idea-accent. It is intentionally not modeled on a short-video or creator-social interface. The mark is an open book with a small orbit/spark, representing focused learning and ideas shared inside a trusted circle. Keep the palette in semantic CSS tokens and maintain a complete warm-paper light theme. This is the implementation direction for review, not a claim of final brand approval.
 
-Chats should feel like a calm study inbox: compact page header, circular story rail, conversation-first list, and a full-screen thread on narrow screens. Member discovery is a deliberate secondary action; do not make the directory or a large sign-in form dominate the first screen. Signed-out users see an honest community welcome and an unobtrusive sign-in dialog, never local notes presented as live chats.
+Chats should feel like a calm study inbox: compact page header, circular story rail, real member profiles and conversations, and a full-screen thread on narrow screens. Member discovery is a deliberate secondary action; do not make the directory or a large sign-in form dominate the first screen. Authentication is app-wide, not a Chats feature: the app opens on email OTP sign-in/create-account, then verified new accounts pass the private-community activation gate and complete their profile. Chats never asks users to sign in again. Only approved community members are shown in member discovery. The activation-code UI is a clearly disabled placeholder until the redemption/generator system is implemented; it must never bypass membership.
 
 ## Typography
 
@@ -61,3 +61,10 @@ Names only, see `.env.example`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABAS
 ## Android / PWA readiness
 
 `app/manifest.ts` and `app/icon.svg` exist. No Capacitor or native pipeline has been added; APK support is NOT claimed. Browser-only APIs must stay behind interfaces when platform features arrive.
+
+
+## Identity and offline messaging
+
+The authenticated app shell is gated by the Supabase email OTP session, a completed public profile, and approved community membership. Profile setup stores display name, unique username, and optional bio in `public.profiles`; private academic data remains separate. Sessions persist locally on each device and the cloud account owns the shared profile, conversations, messages and media. Chats uses IndexedDB for cached conversation indexes/message history and a durable local outbox; text and media messages queued while offline are sent with stable message IDs when connectivity returns, avoiding duplicate inserts. Local cached content is device-local and is not a cross-device offline sync until it reaches Supabase.
+
+Current message access is private through HTTPS, database RLS and Supabase-managed encryption at rest. **End-to-end encryption (E2EE) is not implemented yet**: the database can currently process/store message plaintext. Do not describe Chats as E2EE until per-user/device key management, encrypted payloads, key recovery/multi-device design and separate-account tests are implemented and verified.
