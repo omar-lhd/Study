@@ -20,4 +20,4 @@ pnpm build       # production build
 pnpm check       # typecheck + lint + build
 ```
 
-Copy `.env.example` to `.env.local` when backend integration begins (Package B). Never commit real values.
+Copy `.env.example` to `.env.local` for the connected Supabase backend. Never commit real values. Phase 1 uses app-wide email OTP auth and the existing private-community project.
