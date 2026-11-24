@@ -361,9 +361,6 @@ export const en: Record<MessageKey, string> = {
 
 
   'cloud.auth.join': 'Join community',
-  'cloud.auth.sending': 'Sending…',
-  'cloud.auth.verifying': 'Verifying…',
-  'cloud.auth.sendCode': 'Send sign-in code',
   'cloud.auth.verifyCode': 'Verify code',
   'cloud.auth.codePlaceholder': 'Enter the code from your email',
   'cloud.auth.changeEmail': 'Change email',
