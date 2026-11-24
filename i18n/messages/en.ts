@@ -360,6 +360,10 @@ export const en: Record<MessageKey, string> = {
   'settings.appearance.persisted': 'Appearance is saved on this device.',
 
 
+  'cloud.auth.error.rateLimited': 'Too many requests in a short time. Wait a moment and try again.',
+  'cloud.auth.error.invalidEmail': 'Check the email address and enter a valid email.',
+  'cloud.auth.error.invalidCode': 'That code is not valid. Check the email and try again.',
+  'cloud.auth.error.expiredCode': 'That code has expired. Request a new one.',
   'cloud.auth.join': 'Join community',
   'cloud.auth.verifyCode': 'Verify code',
   'cloud.auth.codePlaceholder': 'Enter the code from your email',

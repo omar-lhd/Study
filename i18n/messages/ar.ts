@@ -357,6 +357,10 @@ export const ar = {
   'settings.appearance.persisted': 'المظهر بيتحفظ على الجهاز ده.',
 
 
+  'cloud.auth.error.rateLimited': 'طلبات كتير في وقت قصير. استنى شوية وجرب تاني.',
+  'cloud.auth.error.invalidEmail': 'راجع الإيميل واكتب عنوان صحيح.',
+  'cloud.auth.error.invalidCode': 'الكود مش صحيح. راجع الرسالة وجرب تاني.',
+  'cloud.auth.error.expiredCode': 'الكود انتهت صلاحيته. اطلب كود جديد.',
   'cloud.auth.join': 'دخول المجتمع',
   'cloud.auth.verifyCode': 'تأكيد الكود',
   'cloud.auth.codePlaceholder': 'اكتب الكود اللي وصلك',
