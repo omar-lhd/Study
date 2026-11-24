@@ -142,7 +142,9 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       setDisplayName(cleanName); setUsername(cleanUsername)
       setStage('checking')
       const memberships = await cloudRest<Membership[]>(`group_members?select=group_id,user_id&user_id=eq.${session.user.id}&limit=1`)
-      setStage(memberships.length ? 'ready' : 'activation')
+      const approved = memberships.length > 0
+      void writeOfflineSnapshot(`auth-access:${session.user.id}`, { approved, profileReady: true, checkedAt: Date.now() }).catch(() => {})
+      setStage(approved ? 'ready' : 'activation')
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
       setError(/unique|duplicate/i.test(message)
@@ -203,7 +205,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary"><ShieldCheck className="size-6"/></div>
           <h2 className="text-xl font-bold">{ar ? 'حسابك اتجهّز — باقي اعتماد العضوية' : 'Account ready — membership approval pending'}</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'تم التحقق من بريدك وحفظ ملفك الشخصي. التطبيق خاص بالأعضاء المعتمدين فقط؛ شاشة وأكواد التفعيل هتتربط لما نظام التفعيل يتنفذ. لحد وقتها لازم مسؤول المجتمع يضيف حسابك كعضو معتمد. مش هنفتح التطبيق أو المحادثات قبل الاعتماد.' : 'Your email is verified and profile is saved. Study is private; activation-code redemption will be connected when that system is implemented. Until then, an administrator must add your account as an approved member. The app and chats stay locked until approval.'}</p>
-          <div className="mt-5 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4 text-sm text-muted-foreground">{ar ? 'كود التفعيل: غير متاح لسه — مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية.' : 'Activation code: not available yet. We will not accept fake codes or bypass membership authorization.'}</div>
+          <div className="mt-5 grid gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4"><Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label><Input id="study-activation-code" disabled placeholder={ar ? 'هيتفعّل بعد تنفيذ نظام الأكواد' : 'Enabled when activation codes are implemented'} dir="ltr"/><Button type="button" disabled className="w-full">{ar ? 'تفعيل العضوية — قريبًا' : 'Activate membership — coming later'}</Button><p className="text-xs leading-5 text-muted-foreground">{ar ? 'مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية. حاليًا العضو المعتمد لازم يتضاف من مسؤول المجتمع.' : 'No fake code or membership bypass. For now, an administrator must approve members.'}</p></div>
         </> : null}
 
         {status ? <p role="status" className="mt-4 rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{status}</p> : null}
