@@ -7,6 +7,7 @@ import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
 import { cloudRest, readCloudSession, requestEmailOtp, signOutCloud, subscribeCloudSession, verifyEmailOtp } from '@/lib/chats/cloud-client'
 import { readOfflineSnapshot, writeOfflineSnapshot } from '@/lib/chats/offline-store'
+import { OfflineOutboxSync } from './offline-outbox-sync'
 
 type Stage = 'loading' | 'checking' | 'auth' | 'profile' | 'activation' | 'ready'
 type Profile = { id: string; display_name: string; username: string | null; bio: string | null }
@@ -159,7 +160,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     return <div className="flex min-h-dvh items-center justify-center bg-background p-6"><div className="flex items-center gap-3 text-muted-foreground"><BookOpen className="size-7 animate-pulse text-primary"/><span>{ar ? 'بنجهز Study…' : 'Preparing Study…'}</span></div></div>
   }
 
-  if (stage === 'ready') return <>{children}</>
+  if (stage === 'ready') return <><OfflineOutboxSync />{children}</>
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-8">
