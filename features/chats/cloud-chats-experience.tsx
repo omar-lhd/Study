@@ -479,7 +479,7 @@ export function CloudChatsExperience() {
         setStatus(locale === 'ar' ? 'اتحفظت الرسالة على الجهاز وهتتبعت أول ما الإنترنت يرجع.' : 'Message saved on this device and will send when you reconnect.')
         return
       }
-      const inserted = await cloudRest<{ id: string }[]>('messages?select=id', {
+      await cloudRest<{ id: string }[]>('messages?select=id', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ id: messageId, conversation_id: activeId, sender_id: session.user.id, content: messageText.trim(), message_type: media ? mediaType : 'text', reply_to_message_id: replyToMessageId }),
