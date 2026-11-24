@@ -25,6 +25,7 @@ Ten additive migrations are committed on the phase branch and applied:
 7. `20261124085000_phase1_security_and_fk_indexes.sql`
 8. `20261124090000_conversation_member_removal.sql`
 9. `20261124091000_fix_chat_rls_and_policy_performance.sql`
+10. `20261124073240_member_avatar_storage.sql`
 
 They provide profile metadata, direct/group conversations and memberships, messages, attachments, reactions, delivery/read receipts, Stories and audience/view/reaction records, in-app notifications, private `chat-media` Storage policies, Realtime publication membership, member-authorized private Realtime channel policies, and guarded RPCs for conversation/group creation and member removal/leave, Story publishing/views, message read/edit/delete/pin.
 
@@ -44,13 +45,13 @@ Security hardening narrows client column grants so clients cannot self-promote c
 - IndexedDB caches conversation/member/story indexes and message history. A durable outbox stores offline text and attachment messages, uses stable client-generated message UUIDs to make retries idempotent, and syncs from a global app component when connectivity returns. Offline cache/outbox behavior has not yet been device-tested.
 
 ## Verification
-- GitHub Actions CI run #155 passed `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build` for the app-wide auth and offline-outbox implementation before the final small lint/documentation adjustment; the latest head still needs a fresh green run.
+- GitHub Actions CI #159 passed `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build` on the current branch head after app-wide auth and offline-outbox changes.
 - Earlier CI runs caught and corrected type/lint/source issues; those failures are not being represented as successful runs.
 - Database verification confirmed RLS and the Realtime/Story notification additions.
 - Supabase Security Advisor still reports the intentionally exposed authenticated SECURITY DEFINER RPCs (they perform server-side authorization checks), the private `invite_codes` table with no direct policy (invite redemption is RPC-only), and disabled leaked-password protection (the current sign-in path is email OTP). These are documented residuals, not claimed as zero findings.
 - No real two-account/device acceptance test has been completed yet.
 - OTP email delivery/configuration has not been verified against an approved member inbox. The user screenshot error `Signups not allowed for otp` matches the previous client behavior: the only Chats OTP call explicitly used `create_user: false`, so new addresses could not register. The new app-level signup flow sends `create_user: true`; if Supabase Auth's project-level “Allow new users to sign up” setting is disabled, the hosted project will still reject registration. The current Supabase connector exposes database/project tools but no hosted Auth settings write, so that setting remains to be verified/enabled in the dashboard.
-- A fresh Vercel deployment for the current Phase 1 branch is blocked by the Vercel API quota (100 deployments/day; retry window reported as 24 hours). The previous READY deployment at commit `d49ec1760c30c752c1280c1b1fa0ea1fbde069fa` predates the Study / Night Desk UX and avatar work and must not be used for current visual acceptance. GitHub Actions CI #134 passed typecheck, lint, tests and build on the current code.
+- A fresh Vercel deployment for the current Phase 1 branch is blocked by the Vercel API quota (100 deployments/day; retry window reported as 24 hours). The previous READY deployment at commit `d49ec1760c30c752c1280c1b1fa0ea1fbde069fa` predates the Study / Night Desk UX and avatar work and must not be used for current visual acceptance. GitHub Actions CI #159 passed typecheck, lint, tests and build on the current branch head.
 
 ## Remaining Phase 1 work / acceptance blockers
 - Confirm Notion handoff archive and original Master Project Record/Execution Plan review; they were not readable through the available connector in this execution context.
