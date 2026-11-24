@@ -8,7 +8,7 @@ import { Input, Label, Textarea } from '@/components/ui/field'
 import { EmptyState } from '@/components/ui/states'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
+import { cloudRest, cloudStorageRemove, cloudStorageSignedUrl, cloudStorageSignedUrls, cloudStorageUploadWithProgress, readCloudSession, subscribeCloudSession, subscribeConversationRealtime } from '@/lib/chats/cloud-client'
 import { formatMediaDuration, validateChatMedia, validateStoryImage } from '@/lib/chats/validation'
 
 type Profile = { id: string; display_name: string; username: string | null; avatar_url: string | null; avatar_storage_path?: string | null; bio: string | null }
@@ -24,7 +24,7 @@ function apiFilter(ids: string[]) {
 }
 
 async function resolveAvatarProfiles(profiles: Profile[]): Promise<Profile[]> {
-  const paths = [...new Set(profiles.map(profile => profile.avatar_url).filter((path): path is string => Boolean(path?.startsWith('avatars/')))]
+  const paths = [...new Set(profiles.map(profile => profile.avatar_url).filter((path): path is string => Boolean(path?.startsWith('avatars/'))))]
   if (!paths.length) return profiles
   let signed: Record<string, string> = {}
   try { signed = await cloudStorageSignedUrls(paths, 86400) } catch { /* keep initials if Storage is temporarily unavailable */ }
@@ -197,7 +197,7 @@ export function CloudChatsExperience() {
           setPeerNames(names)
           setPeerAvatars(avatars)
         } else { setPeerNames({}); setPeerAvatars({}) }
-        if (!activeId && convs[0]) setActiveId(convs[0].id)
+        if (convs[0]) setActiveId(current => current || convs[0].id)
       } else { setConversations([]); setUnreadCounts({}); setConversationPreviews({}); setPeerNames({}); setPeerAvatars({}); setConversationMembers({}); setConversationPreferences({}) }
       const now = new Date().toISOString()
       const storyRows = await cloudRest<Story[]>(`stories?select=id,owner_id,story_type,text_content,storage_path,audience,created_at,expires_at&status=eq.published&expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`)
@@ -217,7 +217,7 @@ export function CloudChatsExperience() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('cloud.error.loadChats'))
     }
-  }, [session, activeId, t])
+  }, [session, t])
 
   // Async data loading is the external-system synchronization this effect exists for.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -325,7 +325,7 @@ export function CloudChatsExperience() {
       }
       const conversationId = notification.payload.conversation_id
       const storyId = notification.payload.story_id
-      if (typeof conversationId === 'string') setActiveId(conversationId)
+      if (typeof conversationId === 'string') { setActiveId(conversationId); setMobileThreadOpen(true) }
       if (typeof storyId === 'string') {
         const story = stories.find(item => item.id === storyId)
         if (story) await openStory(story)
@@ -644,7 +644,7 @@ export function CloudChatsExperience() {
       if (groupAvatarPath) {
         await cloudRest<void>(`conversations?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ avatar_url: groupAvatarPath }) })
       }
-      setGroupTitle(''); setSelectedGroupMembers([]); setGroupImageFile(null); setGroupComposerOpen(false); setActiveId(id)
+      setGroupTitle(''); setSelectedGroupMembers([]); setGroupImageFile(null); setGroupComposerOpen(false); setActiveId(id); setMobileThreadOpen(true)
       await loadData()
       setStatus(t('cloud.members.groupCreated'))
     } catch (cause) {
