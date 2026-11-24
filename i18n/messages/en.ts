@@ -410,6 +410,7 @@ export const en: Record<MessageKey, string> = {
   'cloud.members.createGroup': 'Create group',
   'cloud.members.groupCreated': 'Group conversation created.',
   'cloud.conversations.title': 'Conversations',
+  'cloud.conversations.emptyInbox': 'No conversations yet. Find a study friend and start chatting about learning or your day.',
   'cloud.conversations.private': 'Private chat',
   'cloud.conversations.group': 'Group',
   'cloud.conversations.choose': 'Choose a conversation',

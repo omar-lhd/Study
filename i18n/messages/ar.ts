@@ -407,6 +407,7 @@ export const ar = {
   'cloud.members.createGroup': 'إنشاء مجموعة',
   'cloud.members.groupCreated': 'تم إنشاء محادثة المجموعة.',
   'cloud.conversations.title': 'المحادثات',
+  'cloud.conversations.emptyInbox': 'لسه مفيش محادثات. اختار حد من الشلة وابدأوا كلام عن المذاكرة أو يومكم.',
   'cloud.conversations.private': 'شات خاص',
   'cloud.conversations.group': 'مجموعة',
   'cloud.conversations.choose': 'اختار محادثة',
