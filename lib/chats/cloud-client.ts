@@ -108,6 +108,7 @@ export function signOutCloud() {
 async function getValidSession(): Promise<CloudAuthSession> {
   let session = readCloudSession()
   if (!session) throw new Error('Sign in with your approved community email first')
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return session
   if (session.expires_at > Math.floor(Date.now() / 1000) + 600) return session
   const { url, key } = config()
   const response = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
