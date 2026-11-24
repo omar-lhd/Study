@@ -405,6 +405,7 @@ export const en: Record<MessageKey, string> = {
   'cloud.stories.react': 'React',
   'cloud.stories.viewRecorded': 'Story view recorded.',
   'cloud.stories.reactionSaved': 'Story reaction saved.',
+  'cloud.stories.imageTypeInvalid': 'Choose a supported image file.',
   'cloud.stories.imageAlt': 'Story image',
   'cloud.members.title': 'Members',
   'cloud.members.search': 'Search approved members',

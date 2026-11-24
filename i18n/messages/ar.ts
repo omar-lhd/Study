@@ -402,6 +402,7 @@ export const ar = {
   'cloud.stories.react': 'تفاعل',
   'cloud.stories.viewRecorded': 'تم تسجيل مشاهدة القصة.',
   'cloud.stories.reactionSaved': 'تم حفظ التفاعل على القصة.',
+  'cloud.stories.imageTypeInvalid': 'اختار صورة بصيغة مدعومة.',
   'cloud.stories.imageAlt': 'صورة القصة',
   'cloud.members.title': 'الأعضاء',
   'cloud.members.search': 'دوّر على الأعضاء المعتمدين',
