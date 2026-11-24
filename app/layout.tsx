@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from 'next'
-import { IBM_Plex_Sans_Arabic, Inter } from 'next/font/google'
+import { IBM_Plex_Sans_Arabic, Manrope } from 'next/font/google'
 import { PreferencesProvider } from '@/components/providers/preferences-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { LOCALE_META, createTranslator } from '@/i18n/config'
 import { getLocale, getTheme } from '@/lib/preferences/server'
 import './globals.css'
 
-const latin = Inter({
+const latin = Manrope({
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
   variable: '--font-latin',
   display: 'swap',
 })

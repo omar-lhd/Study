@@ -38,9 +38,15 @@ Section lists live in `config/sections.ts`; adding a section is a one-line chang
 
 Dark is default; Light is a separate designed palette. Tokens are CSS variables in `app/globals.css` (`:root` for dark, `.light` for light) exposed to Tailwind through `@theme inline` (e.g. `bg-card`, `text-muted-foreground`, `border-border`, `bg-primary`). Components must not use raw colour values. The `psc-theme` cookie is read on the server, so the correct class is rendered in the first HTML.
 
+## Brand direction
+
+The current visual direction is **Study / Night Desk**: an editorial learning identity built around ink-plum surfaces, warm saffron focus, and a restrained lilac idea-accent. It is intentionally not modeled on a short-video or creator-social interface. The mark is an open book with a small orbit/spark, representing focused learning and ideas shared inside a trusted circle. Keep the palette in semantic CSS tokens and maintain a complete warm-paper light theme. This is the implementation direction for review, not a claim of final brand approval.
+
+Chats should feel like a calm study inbox: compact page header, circular story rail, conversation-first list, and a full-screen thread on narrow screens. Member discovery is a deliberate secondary action; do not make the directory or a large sign-in form dominate the first screen. Signed-out users see an honest community welcome and an unobtrusive sign-in dialog, never local notes presented as live chats.
+
 ## Typography
 
-Inter (Latin) and IBM Plex Sans Arabic, both through `next/font` with `display: swap`. The primary family switches by `html[lang]`, with each as fallback for the other script.
+Manrope (Latin) and IBM Plex Sans Arabic, both through `next/font` with `display: swap`. The primary family switches by `html[lang]`, with each as fallback for the other script. Manrope supplies a more human, contemporary display rhythm while IBM Plex Sans Arabic preserves readable Arabic shaping.
 
 ## Responsive shell
 

@@ -14,7 +14,7 @@ Working settings: Language and Appearance only. Every other control or section i
 
 ## Phase 1 — Identity, Chats and Stories (in progress on `phase-1/identity-chats-stories`)
 
-A connected implementation is available on the Phase 1 branch and Draft PR #2. It includes Supabase Email OTP/session handling, profile metadata and membership-gated member discovery, direct/group conversations, persistent messages and operations, private attachments/voice notes, Realtime typing/presence/reconnect, Stories with audience/viewers/reactions/expiry, and in-app notifications. Nine additive migrations were applied to the verified Supabase project and security/RLS checks were performed. Existing local Notes/Story drafts and Sessions remain preserved.
+A connected implementation is available on the Phase 1 branch and Draft PR #2. The current UI pass establishes the Study / Night Desk visual direction (ink-plum, saffron, lilac), an original open-book/orbit mark, Manrope + IBM Plex Sans Arabic typography, and a compact sign-in dialog. Signed-out Chats now presents an honest branded welcome rather than the old local Notes experience; the cloud inbox prioritizes conversations, renders Stories as a circular rail, and opens selected threads full-screen on mobile. It includes Supabase Email OTP/session handling, profile metadata and membership-gated member discovery, direct/group conversations, persistent messages and operations, private attachments/voice notes, Realtime typing/presence/reconnect, Stories with audience/viewers/reactions/expiry, and in-app notifications. Nine additive migrations were applied to the verified Supabase project and security/RLS checks were performed. Existing local Notes/Story drafts and Sessions remain preserved.
 
 Preview deployment: `https://study-5wvfbfcjg-omar-947f.vercel.app` (READY at commit `d49ec1760c30c752c1280c1b1fa0ea1fbde069fa`; Vercel SSO may require team sign-in). GitHub Actions CI run #81 passed typecheck, lint and build.
 
@@ -33,5 +33,5 @@ Correct branch; existing work preserved; dev server starts; build, typecheck, li
 - Package A's original workspace snapshot was empty and lacked `.git`; the current canonical repository and Phase 1 branch are now verified in GitHub. Historical Package A constraints remain recorded here, but do not describe the current Phase 1 branch.
 - Greeting and date use the fixed `Africa/Cairo` zone (`config/app.ts`) until profiles carry a time zone.
 - Theme is dark/light only; no "system" option yet.
-- Brand identity, final logo and PWA icon set are undecided; the current icon is a neutral placeholder.
+- The Study / Night Desk brand direction and matching SVG mark are implemented on the Phase 1 branch and await visual review. A fresh preview build is currently blocked by Vercel's build-rate limit; the previous READY deployment predates these UI changes.
 - The unit/e2e test setup is not configured.
