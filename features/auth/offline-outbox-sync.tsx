@@ -9,9 +9,10 @@ import { syncPendingChatOutbox } from '@/lib/chats/offline-sync'
 export function OfflineOutboxSync() {
   const session = useSyncExternalStore(subscribeCloudSession, readCloudSession, () => null)
   const { locale } = usePreferences()
+  const userId = session?.user.id
 
   useEffect(() => {
-    if (!session) return
+    if (!userId) return
     const sync = () => { void syncPendingChatOutbox() }
     const onError = (event: Event) => {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message
@@ -25,7 +26,7 @@ export function OfflineOutboxSync() {
       window.removeEventListener('online', sync)
       window.removeEventListener('study:offline-outbox-error', onError)
     }
-  }, [session?.user.id, locale])
+  }, [userId, locale])
 
   return null
 }
