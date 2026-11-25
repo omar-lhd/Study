@@ -32,7 +32,10 @@ function Pill({status,ar=false}:{status:string;ar?:boolean}) {
   return <span className={'inline-flex rounded-full px-2.5 py-1 text-xs font-medium '+cls}>{(ar?({available:'متاح',redeemed:'مستخدم',expired:'منتهي',revoked:'ملغى'} as Record<string,string>):statusNames)[status]||status}</span>
 }
 
-export default function CodeAdminPage() {\n  const {locale}=usePreferences()\n  const ar=locale==='ar'\n  const statusLabels:Record<string,string>=ar?{available:'متاح',redeemed:'مستخدم',expired:'منتهي',revoked:'ملغى'}:statusNames
+export default function CodeAdminPage() {
+  const {locale}=usePreferences()
+  const ar=locale==='ar'
+  const statusLabels:Record<string,string>=ar?{available:'متاح',redeemed:'مستخدم',expired:'منتهي',revoked:'ملغى'}:statusNames
   const [tab,setTab]=useState<Tab>('overview')
   const [loading,setLoading]=useState(true)
   const [busy,setBusy]=useState(false)
