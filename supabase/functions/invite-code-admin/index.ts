@@ -114,7 +114,9 @@ Deno.serve(async (req) => {
       }
       const { data: inserted, error: ie } = await admin.from("invite_codes").insert(records).select("id");
       if (ie) { await admin.from("code_batches").delete().eq("id",batch.id); throw ie; }
-      await audit(user.id,"batch_generated",{group_id:groupId,batch_id:batch.id,metadata:{count:amount,name}});
+      const codeEvents = (inserted || []).map((row, index) => ({ actor_id:user.id, action:"code_generated", group_id:groupId, batch_id:batch.id, invite_code_id:row.id, metadata:{ label:String(body.label||"").slice(0,120), ordinal:index+1 } }));
+      if (codeEvents.length) { const { error: eventError } = await admin.from("code_audit_logs").insert(codeEvents); if (eventError) console.error("code_generated audit insert failed",eventError); }
+      try { await audit(user.id,"batch_generated",{group_id:groupId,batch_id:batch.id,metadata:{count:amount,name}}); } catch (auditError) { console.error("batch_generated audit insert failed",auditError); }
       return response({ batch, codes:generated, codeIds:inserted?.map((x)=>x.id)||[] });
     }
     if (action === "revoke_code") {
