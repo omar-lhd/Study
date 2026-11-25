@@ -169,6 +169,12 @@ Deno.serve(async (req) => {
       }
       return response({success:true});
     }
+    if (action === "code_history") {
+      const id = String(body.codeId || "");
+      const { data, error } = await admin.from("code_audit_logs").select("id,actor_id,action,group_id,batch_id,invite_code_id,metadata,created_at").eq("invite_code_id",id).order("created_at",{ascending:false}).limit(100);
+      if (error) throw error;
+      return response({ items: data || [] });
+    }
     if (action === "audit") {
       const page=Math.max(1,Number(body.page)||1), size=Math.min(100,Math.max(10,Number(body.pageSize)||50));
       let q=admin.from("code_audit_logs").select("id,actor_id,action,group_id,batch_id,invite_code_id,metadata,created_at",{count:"exact"}).order("created_at",{ascending:false});
