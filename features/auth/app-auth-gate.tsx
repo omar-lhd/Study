@@ -118,14 +118,19 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     setBusy(true); setError(''); setStatus('')
     try {
       if (mode === 'signup') {
-        const session = await signUpWithPassword(email, password)
-        if (!session) {
-          // Supabase created the user and sent its confirmation code, but does not
-          // issue a session until that code is verified when Confirm email is on.
-          setAuthMethod('otp')
-          setOtpSent(true)
-          setCode('')
-          setStatus(ar ? 'الحساب اتعمل وبعتنا كود تأكيد البريد. اكتب الكود اللي وصلك عشان تكمل تسجيل الدخول.' : 'Account created. A confirmation code was sent to your email; enter it to finish signing in.')
+        const result = await signUpWithPassword(email, password)
+        if (result.existingAccount) {
+          setMode('login')
+          setAuthMethod('password')
+          setOtpSent(false)
+          setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
+          return
+        }
+        if (!result.session) {
+          setMode('login')
+          setAuthMethod('password')
+          setOtpSent(false)
+          setStatus(ar ? 'تم إنشاء الحساب. افتح رسالة تأكيد البريد واضغط رابط التأكيد، وبعدها ارجع وسجّل الدخول بنفس البريد وكلمة المرور.' : 'Account created. Open the confirmation email and click its confirmation link, then return and sign in with the same email and password.')
           return
         }
       } else {
@@ -134,12 +139,12 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
-      if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
+      if (/user already registered|already registered|email already exists/i.test(message)) {\n        setMode('login'); setAuthMethod('password'); setOtpSent(false)\n        setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')\n      } else if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
         setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
       } else if (/invalid login credentials/i.test(message)) {
-        setError(ar ? 'البريد أو كلمة المرور غير صحيحين. لو حسابك القديم اتعمل بكود البريد فقط، اضغط «الحساب القديم؟ سجّل بكود البريد» بدل كلمة المرور.' : 'Email or password is incorrect. If this older account was created with an email code, use “Existing email-code account?” instead of password sign-in.')
+        setError(ar ? 'البريد أو كلمة المرور غير صحيحين، أو البريد لم يتم تأكيده بعد. افتح رسالة التأكيد أولًا، ثم سجّل الدخول بنفس كلمة المرور.' : 'Email or password is incorrect, or the email is not confirmed yet. Open the confirmation email first, then sign in with the same password.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
-        setError(ar ? 'Supabase فرض حدًا مؤقتًا على محاولات الدخول. توقف عن المحاولات المتكررة وانتظر انتهاء الحد؛ التسجيل بكلمة مرور لا يرسل رسالة بريد.' : 'Supabase temporarily rate-limited authentication attempts. Stop repeated attempts and let the limit reset; password sign-up does not send an email.')
+        setError(ar ? 'خدمة Supabase Auth رفضت الطلب مؤقتًا بسبب حدّ المحاولات على الشبكة أو البريد. ده مش معناه إن الإيميل اتسجل؛ وقف المحاولات لحد ما الحد يتجدد، وبعدها جرّب مرة واحدة.' : 'Supabase Auth temporarily rejected requests due to its network or email rate limit. This does not mean the email is registered; stop retrying until the limit resets, then try once.')
       } else {
         setError(message || (ar ? 'تعذر تسجيل الدخول.' : 'Could not authenticate.'))
       }
@@ -228,7 +233,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
         {stage === 'auth' ? <>
           <h2 className="text-xl font-bold">{authMethod === 'otp' ? (ar ? 'تسجيل الدخول بكود البريد' : 'Sign in with email code') : mode === 'signup' ? (ar ? 'إنشاء حساب جديد' : 'Create your account') : (ar ? 'أهلاً بعودتك' : 'Welcome back')}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{authMethod === 'otp' ? (ar ? 'للحسابات القديمة اللي اتعملت بكود البريد، استخدم كود تسجيل الدخول. إرسال الأكواد محدود؛ استخدم كلمة المرور لتسجيل أو إنشاء حساب بدون إرسال بريد.' : 'Use a sign-in code for existing email-code accounts. Code delivery is rate-limited; password sign-in and signup do not send email.') : (ar ? 'سجّل بالبريد الإلكتروني وكلمة مرور. إنشاء الحساب وتسجيل الدخول لا يحتاجان إرسال رسالة تحقق؛ بعد الدخول هنراجع عضويتك.' : 'Sign in or create an account with email and password. This flow does not send verification emails; after sign-in we check your community membership.')}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{authMethod === 'otp' ? (ar ? 'للحسابات القديمة اللي اتعملت بكود البريد، استخدم كود تسجيل الدخول. إرسال الأكواد محدود؛ استخدم كلمة المرور لتسجيل أو إنشاء حساب بدون إرسال بريد.' : 'Use a sign-in code for existing email-code accounts. Code delivery is rate-limited; password sign-in and signup do not send email.') : (ar ? 'سجّل بالبريد الإلكتروني وكلمة مرور. إنشاء حساب جديد يرسل رسالة تأكيد؛ بعد تأكيد البريد سجّل الدخول، وهنراجع عضويتك.' : 'Use your email and password. New accounts receive an email confirmation link; confirm your email, then sign in and we will check your membership.')}</p>
           <div className="mt-5 grid grid-cols-2 rounded-xl bg-secondary/60 p-1">
             <button type="button" onClick={() => { setMode('login'); setError(''); setStatus('') }} className={mode === 'login' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'تسجيل دخول' : 'Sign in'}</button>
             <button type="button" onClick={() => { setMode('signup'); setAuthMethod('password'); setError(''); setStatus('') }} className={mode === 'signup' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'إنشاء حساب' : 'Create account'}</button>
