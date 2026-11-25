@@ -5,7 +5,7 @@ import { BookOpen, CheckCircle2, KeyRound, Mail, ShieldCheck, LogOut } from 'luc
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, readCloudSession, requestEmailOtp, signOutCloud, subscribeCloudSession, verifyEmailOtp } from '@/lib/chats/cloud-client'
+import { cloudRest, readCloudSession, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession } from '@/lib/chats/cloud-client'
 import { readOfflineSnapshot, writeOfflineSnapshot } from '@/lib/chats/offline-store'
 import { OfflineOutboxSync } from './offline-outbox-sync'
 
@@ -25,8 +25,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [stage, setStage] = useState<Stage>('loading')
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [sent, setSent] = useState(false)
+  const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
@@ -104,38 +103,24 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   }, [hydrated, userId, ar, retryCount])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  async function sendCode(event: FormEvent<HTMLFormElement>) {
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setBusy(true); setError(''); setStatus('')
     try {
-      await requestEmailOtp(email, mode === 'signup')
-      setSent(true)
-      setStatus(ar ? 'بعتنالك كود التحقق على البريد الإلكتروني.' : 'We sent a verification code to your email.')
+      if (mode === 'signup') await signUpWithPassword(email, password)
+      else await signInWithPassword(email, password)
+      setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
       if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
-        setError(ar
-          ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. لازم تفعيل Allow new users to sign up من إعدادات Auth للمشروع.'
-          : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up” in this project’s Auth settings.')
-      } else if (/rate|too many/i.test(message)) {
-        setError(ar ? 'طلبات كتير في وقت قصير. استنى شوية وجرب تاني.' : 'Too many requests. Please wait and try again.')
+        setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
+      } else if (/email confirmations? enabled|active session/i.test(message)) {
+        setError(ar ? 'تأكيد البريد ما زال مفعّلًا في Supabase. اقفل Confirm email حتى يتم تسجيل الحساب بكلمة مرور بدون إرسال بريد.' : 'Email confirmation is still enabled in Supabase. Turn off Confirm email to create a password account without sending email.')
+      } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
+        setError(ar ? 'Supabase فرض حدًا مؤقتًا على محاولات الدخول. توقف عن المحاولات المتكررة وانتظر انتهاء الحد؛ التسجيل بكلمة مرور لا يرسل رسالة بريد.' : 'Supabase temporarily rate-limited authentication attempts. Stop repeated attempts and let the limit reset; password sign-up does not send an email.')
       } else {
-        setError(message || (ar ? 'تعذر إرسال كود التحقق.' : 'Could not send the verification code.'))
+        setError(message || (ar ? 'تعذر تسجيل الدخول.' : 'Could not authenticate.'))
       }
-    } finally { setBusy(false) }
-  }
-
-  async function verifyCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setBusy(true); setError(''); setStatus('')
-    try {
-      await verifyEmailOtp(email, code)
-      setStatus(ar ? 'تم التحقق من البريد. بنجهز حسابك…' : 'Email verified. Preparing your account…')
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : ''
-      setError(/expired/i.test(message)
-        ? (ar ? 'الكود انتهت صلاحيته. اطلب كود جديد.' : 'That code expired. Request a new one.')
-        : (ar ? 'الكود غير صحيح أو انتهت صلاحيته.' : 'The code is incorrect or has expired.'))
     } finally { setBusy(false) }
   }
 
@@ -170,7 +155,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     } finally { setBusy(false) }
   }
 
-  const signOut = () => { signOutCloud(); setSent(false); setCode(''); setStage('auth') }
+  const signOut = () => { signOutCloud(); setPassword(''); setStage('auth') }
 
   if (!hydrated || stage === 'loading' || stage === 'checking') {
     return <div className="flex min-h-dvh items-center justify-center bg-background p-6"><div className="flex items-center gap-3 text-muted-foreground"><BookOpen className="size-7 animate-pulse text-primary"/><span>{ar ? 'بنجهز Study…' : 'Preparing Study…'}</span></div></div>
@@ -187,24 +172,17 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         </div>
 
         {stage === 'auth' ? <>
-          <h2 className="text-xl font-bold">{sent ? (ar ? 'تأكيد البريد الإلكتروني' : 'Verify your email') : mode === 'signup' ? (ar ? 'إنشاء حساب جديد' : 'Create your account') : (ar ? 'أهلاً بعودتك' : 'Welcome back')}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{sent
-            ? (ar ? `اكتب كود التحقق اللي وصل على ${email}` : `Enter the verification code sent to ${email}`)
-            : (ar ? 'سجّل بالبريد الإلكتروني. بعد التحقق هنجهز ملفك الشخصي ونتأكد من عضويتك في المجتمع.' : 'Use your email to sign in or create an account. After verification, set up your profile and community access.')}</p>
-          {!sent ? <>
-            <div className="mt-5 grid grid-cols-2 rounded-xl bg-secondary/60 p-1">
-              <button type="button" onClick={() => { setMode('login'); setError('') }} className={mode === 'login' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'تسجيل دخول' : 'Sign in'}</button>
-              <button type="button" onClick={() => { setMode('signup'); setError('') }} className={mode === 'signup' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'إنشاء حساب' : 'Create account'}</button>
-            </div>
-            <form onSubmit={sendCode} className="mt-5 grid gap-3">
-              <div className="grid gap-1.5"><Label htmlFor="study-auth-email">{ar ? 'البريد الإلكتروني' : 'Email address'}</Label><Input id="study-auth-email" type="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com"/></div>
-              <Button type="submit" className="mt-1 w-full rounded-xl" disabled={busy || !email.trim()}><Mail data-icon="inline-start"/>{busy ? (ar ? 'جاري الإرسال…' : 'Sending…') : (ar ? 'إرسال كود التحقق' : 'Send verification code')}</Button>
-            </form>
-          </> : <form onSubmit={verifyCode} className="mt-5 grid gap-3">
-            <div className="grid gap-1.5"><Label htmlFor="study-auth-code">{ar ? 'كود التحقق' : 'Verification code'}</Label><Input id="study-auth-code" inputMode="numeric" autoComplete="one-time-code" dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required minLength={6} maxLength={6} pattern="[0-9]{6}" placeholder="000000"/></div>
-            <Button type="submit" className="w-full rounded-xl" disabled={busy || code.length !== 6}><KeyRound data-icon="inline-start"/>{busy ? (ar ? 'جاري التحقق…' : 'Verifying…') : (ar ? 'تأكيد البريد' : 'Verify email')}</Button>
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => { setSent(false); setCode(''); setError('') }}>{ar ? 'تغيير البريد' : 'Change email'}</Button>
-          </form>}
+          <h2 className="text-xl font-bold">{mode === 'signup' ? (ar ? 'إنشاء حساب جديد' : 'Create your account') : (ar ? 'أهلاً بعودتك' : 'Welcome back')}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'سجّل بالبريد الإلكتروني وكلمة مرور. إنشاء الحساب وتسجيل الدخول لا يحتاجان إرسال رسالة تحقق؛ بعد الدخول هنراجع عضويتك.' : 'Sign in or create an account with email and password. This flow does not send verification emails; after sign-in we check your community membership.'}</p>
+          <div className="mt-5 grid grid-cols-2 rounded-xl bg-secondary/60 p-1">
+            <button type="button" onClick={() => { setMode('login'); setError(''); setStatus('') }} className={mode === 'login' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'تسجيل دخول' : 'Sign in'}</button>
+            <button type="button" onClick={() => { setMode('signup'); setError(''); setStatus('') }} className={mode === 'signup' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'إنشاء حساب' : 'Create account'}</button>
+          </div>
+          <form onSubmit={submitAuth} className="mt-5 grid gap-3">
+            <div className="grid gap-1.5"><Label htmlFor="study-auth-email">{ar ? 'البريد الإلكتروني' : 'Email address'}</Label><Input id="study-auth-email" type="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com"/></div>
+            <div className="grid gap-1.5"><Label htmlFor="study-auth-password">{ar ? 'كلمة المرور' : 'Password'}</Label><Input id="study-auth-password" type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} dir="ltr" value={password} onChange={event => setPassword(event.target.value)} required minLength={6} maxLength={72} placeholder={ar ? '٦ أحرف على الأقل' : 'At least 6 characters'}/></div>
+            <Button type="submit" className="mt-1 w-full rounded-xl" disabled={busy || !email.trim() || password.length < 6}><KeyRound data-icon="inline-start"/>{busy ? (ar ? 'جاري التحقق…' : 'Signing in…') : mode === 'signup' ? (ar ? 'إنشاء الحساب' : 'Create account') : (ar ? 'تسجيل الدخول' : 'Sign in')}</Button>
+          </form>
         </> : null}
 
         {stage === 'profile' ? <>
@@ -230,7 +208,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         {error ? <p role="alert" className="mt-4 rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p> : null}
 
         {stage === 'activation' || stage === 'profile' ? <Button type="button" variant="outline" className="mt-4 w-full rounded-xl" onClick={signOut}><LogOut data-icon="inline-start"/>{ar ? 'تسجيل خروج' : 'Sign out'}</Button> : null}
-        {stage === 'auth' && sent ? <p className="mt-4 text-center text-xs text-muted-foreground">{ar ? 'لو الرسالة ماوصلتش، راجع Spam وجرب بعد دقيقة.' : 'If the email does not arrive, check spam and try again in a minute.'}</p> : null}
+        
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="size-3.5 text-primary"/>{ar ? 'بريدك وبياناتك محفوظة على حسابك' : 'Your account data is saved securely to your account'}</div>
       </section>
     </main>
