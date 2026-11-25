@@ -58,9 +58,13 @@ Deno.serve(async (req) => {
       const summary = { total: all.length, available: 0, redeemed: 0, expired: 0, revoked: 0 };
       for (const c of all) summary[statusOf(c) as keyof typeof summary]++;
       const days = new Map<string, number>();
-      for (const c of all) { const day = String(c.created_at).slice(0,10); days.set(day, (days.get(day)||0)+1); }
+      const redemptionDays = new Map<string, number>();
+      for (const c of all) {
+        const day = String(c.created_at).slice(0,10); days.set(day, (days.get(day)||0)+1);
+        if (c.used_at) { const redeemedDay=String(c.used_at).slice(0,10); redemptionDays.set(redeemedDay,(redemptionDays.get(redeemedDay)||0)+1); }
+      }
       await audit(user.id, "admin_access", { metadata: { feature: "invite_code_dashboard" } });
-      return response({ summary, activity: [...days.entries()].sort().slice(-30).map(([date,count])=>({date,count})), recent: logs.data, batches: batches.data, groups: groups.data });
+      return response({ summary, activity: [...days.entries()].sort().slice(-30).map(([date,count])=>({date,count})), redemptionActivity: [...redemptionDays.entries()].sort().slice(-30).map(([date,count])=>({date,count})), recent: logs.data, batches: batches.data, groups: groups.data });
     }
     if (action === "list_codes") {
       const page = Math.max(1, Number(body.page) || 1), pageSize = Math.min(100, Math.max(10, Number(body.pageSize)||25));
