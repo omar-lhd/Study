@@ -78,3 +78,28 @@ drop trigger if exists invite_codes_audit_redemption on public.invite_codes;
 create trigger invite_codes_audit_redemption
 after update of used_at on public.invite_codes
 for each row execute function public.audit_invite_redemption();
+
+-- Group creation is an explicit dashboard action. The creator receives the
+-- normal owner membership for that newly created group; code-admin status itself
+-- does not grant or mutate membership in any pre-existing group.
+create or replace function public.admin_create_study_group(p_name text,p_creator uuid)
+returns public.study_groups
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare v_group public.study_groups%rowtype;
+begin
+ if p_name is null or char_length(trim(p_name)) < 2 or char_length(trim(p_name)) > 80 then
+  raise exception 'Group name must be 2 to 80 characters';
+ end if;
+ if not exists(select 1 from auth.users where id=p_creator) then
+  raise exception 'Creator account not found';
+ end if;
+ insert into public.study_groups(name,created_by) values(trim(p_name),p_creator) returning * into v_group;
+ insert into public.group_members(group_id,user_id,role) values(v_group.id,p_creator,'owner');
+ insert into public.code_audit_logs(actor_id,action,group_id,metadata) values(p_creator,'group_created',v_group.id,jsonb_build_object('name',v_group.name));
+ return v_group;
+end; $$;
+revoke all on function public.admin_create_study_group(text,uuid) from public,anon,authenticated;
+grant execute on function public.admin_create_study_group(text,uuid) to service_role;
