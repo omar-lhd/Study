@@ -32,6 +32,19 @@ async function audit(actor: string, action: string, fields: Record<string, unkno
   if (error) throw error;
 }
 
+type CodeDataRow = InviteStatusRow & { id:string; group_id:string; batch_id:string|null; code_label:string; created_by:string; created_at:string; used_by:string|null; internal_note:string };
+async function fetchAllCodes(): Promise<CodeDataRow[]> {
+  const rows: CodeDataRow[] = [];
+  for (let offset=0; ; offset+=1000) {
+    const { data, error } = await admin.from("invite_codes").select("id,group_id,batch_id,code_label,created_by,created_at,expires_at,used_by,used_at,revoked_at,internal_note").range(offset,offset+999);
+    if (error) throw error;
+    const page=(data||[]) as CodeDataRow[];
+    rows.push(...page);
+    if (page.length<1000) break;
+  }
+  return rows;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return fail("Method not allowed", 405);
@@ -48,14 +61,13 @@ Deno.serve(async (req) => {
     const action = String(body.action || "");
     if (action === "check_access") return response({ authorized: true });
     if (action === "overview") {
-      const [codes, batches, logs, groups] = await Promise.all([
-        admin.from("invite_codes").select("id,group_id,batch_id,code_label,created_by,created_at,expires_at,used_by,used_at,revoked_at,internal_note"),
+      const [batches, logs, groups] = await Promise.all([
         admin.from("code_batches").select("id,name,description,purpose,group_id,code_length,prefix,expires_at,created_by,created_at"),
         admin.from("code_audit_logs").select("id,actor_id,action,group_id,batch_id,invite_code_id,metadata,created_at").order("created_at", { ascending: false }).limit(20),
         admin.from("study_groups").select("id,name,created_at,created_by").order("created_at", { ascending: false }),
       ]);
-      for (const r of [codes,batches,logs,groups]) if (r.error) throw r.error;
-      const all = codes.data || [];
+      for (const r of [batches,logs,groups]) if (r.error) throw r.error;
+      const all = await fetchAllCodes();
       const summary = { total: all.length, available: 0, redeemed: 0, expired: 0, revoked: 0 };
       for (const c of all) summary[statusOf(c) as keyof typeof summary]++;
       const days = new Map<string, number>();
@@ -192,10 +204,9 @@ Deno.serve(async (req) => {
     if (action === "batches") {
       const {data,error}=await admin.from("code_batches").select("*").order("created_at",{ascending:false});
       if(error) throw error;
-      const {data:codes,error:ce}=await admin.from("invite_codes").select("id,batch_id,used_at,expires_at,revoked_at");
-      if(ce) throw ce;
+      const codes=await fetchAllCodes();
       const rows=data||[];
-      return response({items:rows.map((b)=>{const cs=(codes||[]).filter((c)=>c.batch_id===b.id);const summary={total:cs.length,available:0,redeemed:0,expired:0,revoked:0};for(const c of cs)summary[statusOf(c) as keyof typeof summary]++;return {...b,summary};})});
+      return response({items:rows.map((b)=>{const cs=codes.filter((c)=>c.batch_id===b.id);const summary={total:cs.length,available:0,redeemed:0,expired:0,revoked:0};for(const c of cs)summary[statusOf(c) as keyof typeof summary]++;return {...b,summary};})});
     }
     return fail("Unknown action");
   } catch (e) {
