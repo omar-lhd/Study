@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
-import { BookOpen, CheckCircle2, KeyRound, Mail, ShieldCheck, LogOut } from 'lucide-react'
+import { BookOpen, CheckCircle2, KeyRound, ShieldCheck, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, readCloudSession, requestEmailOtp, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession, verifyEmailOtp } from '@/lib/chats/cloud-client'
+import { cloudRest, readCloudSession, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession } from '@/lib/chats/cloud-client'
 import { readOfflineSnapshot, writeOfflineSnapshot } from '@/lib/chats/offline-store'
 import { OfflineOutboxSync } from './offline-outbox-sync'
 
@@ -26,10 +26,6 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [authMethod, setAuthMethod] = useState<'password' | 'otp'>('password')
-  const [code, setCode] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
-  const [otpCooldown, setOtpCooldown] = useState(0)
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
@@ -39,12 +35,6 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [retryCount, setRetryCount] = useState(0)
 
   const userId = session?.user.id
-
-  useEffect(() => {
-    if (otpCooldown <= 0) return
-    const timer = window.setTimeout(() => setOtpCooldown(value => Math.max(0, value - 1)), 1000)
-    return () => window.clearTimeout(timer)
-  }, [otpCooldown])
 
   /* Auth/session and access checks synchronize React with the external Supabase session. */
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -121,15 +111,11 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         const result = await signUpWithPassword(email, password)
         if (result.existingAccount) {
           setMode('login')
-          setAuthMethod('password')
-          setOtpSent(false)
           setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
           return
         }
         if (!result.session) {
           setMode('login')
-          setAuthMethod('password')
-          setOtpSent(false)
           setStatus(ar ? 'تم إنشاء الحساب. افتح رسالة تأكيد البريد واضغط رابط التأكيد، وبعدها ارجع وسجّل الدخول بنفس البريد وكلمة المرور.' : 'Account created. Open the confirmation email and click its confirmation link, then return and sign in with the same email and password.')
           return
         }
@@ -141,53 +127,20 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       const message = cause instanceof Error ? cause.message : ''
       if (/user already registered|already registered|email already exists/i.test(message)) {
         setMode('login')
-        setAuthMethod('password')
-        setOtpSent(false)
+        
+        
         setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
       } else if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
         setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
       } else if (/email not confirmed|email_not_confirmed|not confirmed/i.test(message)) {
-        setError(ar ? 'لازم تأكد بريدك الأول. افتح رسالة التأكيد واضغط الرابط، وبعدها سجّل الدخول بنفس كلمة المرور.' : 'Please confirm your email first. Open the confirmation email, click its link, then sign in with the same password.')
+        setError(ar ? 'إعداد Supabase Auth ما زال يفرض تأكيد البريد. لازم يتوقف Confirm email حتى يسمح بالدخول فورًا بكلمة المرور.' : 'Supabase Auth still requires email confirmation. Disable Confirm email to allow immediate password sign-in.')
       } else if (/invalid login credentials/i.test(message)) {
-        setError(ar ? 'البريد أو كلمة المرور غير صحيحين، أو البريد لم يتم تأكيده بعد. افتح رسالة التأكيد أولًا، ثم سجّل الدخول بنفس كلمة المرور.' : 'Email or password is incorrect, or the email is not confirmed yet. Open the confirmation email first, then sign in with the same password.')
+        setError(ar ? 'البريد أو كلمة المرور غير صحيحين.' : 'Email or password is incorrect.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
         setError(ar ? 'خدمة Supabase Auth رفضت الطلب مؤقتًا بسبب حدّ المحاولات على الشبكة أو البريد. ده مش معناه إن الإيميل اتسجل؛ وقف المحاولات لحد ما الحد يتجدد، وبعدها جرّب مرة واحدة.' : 'Supabase Auth temporarily rejected requests due to its network or email rate limit. This does not mean the email is registered; stop retrying until the limit resets, then try once.')
       } else {
         setError(message || (ar ? 'تعذر تسجيل الدخول.' : 'Could not authenticate.'))
       }
-    } finally { setBusy(false) }
-  }
-
-  async function sendOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (otpCooldown > 0) return
-    setBusy(true); setError(''); setStatus('')
-    try {
-      await requestEmailOtp(email, false)
-      setOtpSent(true)
-      setOtpCooldown(60)
-      setStatus(ar ? 'بعتنا كود تسجيل الدخول. ما تطلبش كود تاني قبل دقيقة.' : 'Sign-in code sent. Please wait 60 seconds before requesting another.')
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : ''
-      const rateLimited = /rate|too many|429/i.test(message)
-      if (rateLimited) setOtpCooldown(60)
-      setError(rateLimited
-        ? (ar ? 'Supabase عامل حد مؤقت على إرسال أكواد الدخول. وقف طلب الأكواد؛ تسجيل الدخول بكلمة مرور لا يرسل بريدًا، أما الحساب الجديد فسيحتاج رسالة تأكيد.' : 'Supabase temporarily limited sign-in code requests. Stop requesting codes; password sign-in sends no email, while new accounts require a confirmation email.')
-        : message || (ar ? 'تعذر إرسال كود الدخول.' : 'Could not send sign-in code.'))
-    } finally { setBusy(false) }
-  }
-
-  async function verifyCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setBusy(true); setError(''); setStatus('')
-    try {
-      await verifyEmailOtp(email, code)
-      setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : ''
-      setError(/expired/i.test(message)
-        ? (ar ? 'الكود انتهت صلاحيته. اطلب كود جديد بعد انتهاء المهلة.' : 'That code expired. Request another after the cooldown.')
-        : (ar ? 'الكود غير صحيح أو انتهت صلاحيته.' : 'The code is incorrect or has expired.'))
     } finally { setBusy(false) }
   }
 
@@ -222,7 +175,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     } finally { setBusy(false) }
   }
 
-  const signOut = () => { signOutCloud(); setPassword(''); setCode(''); setOtpSent(false); setAuthMethod('password'); setStage('auth') }
+  const signOut = () => { signOutCloud(); setPassword(''); setStage('auth') }
 
   if (!hydrated || stage === 'loading' || stage === 'checking') {
     return <div className="flex min-h-dvh items-center justify-center bg-background p-6"><div className="flex items-center gap-3 text-muted-foreground"><BookOpen className="size-7 animate-pulse text-primary"/><span>{ar ? 'بنجهز Study…' : 'Preparing Study…'}</span></div></div>
@@ -239,31 +192,18 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         </div>
 
         {stage === 'auth' ? <>
-          <h2 className="text-xl font-bold">{authMethod === 'otp' ? (ar ? 'تسجيل الدخول بكود البريد' : 'Sign in with email code') : mode === 'signup' ? (ar ? 'إنشاء حساب جديد' : 'Create your account') : (ar ? 'أهلاً بعودتك' : 'Welcome back')}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{authMethod === 'otp' ? (ar ? 'للحسابات القديمة، يمكنك تسجيل الدخول بكود البريد لكن إرسال الأكواد عليه حد مؤقت. استخدم كلمة المرور لتسجيل الدخول؛ وإنشاء حساب جديد يرسل رسالة تأكيد بالبريد.' : 'Use a sign-in code for older email-code accounts, but code delivery may be temporarily limited. Password sign-in does not send email; new password signups receive an email confirmation link.') : (ar ? 'سجّل بالبريد الإلكتروني وكلمة مرور. إنشاء حساب جديد يرسل رسالة تأكيد؛ بعد تأكيد البريد سجّل الدخول، وهنراجع عضويتك.' : 'Use your email and password. New accounts receive an email confirmation link; confirm your email, then sign in and we will check your membership.')}</p>
+          <h2 className="text-xl font-bold">{mode === 'signup' ? (ar ? 'إنشاء حساب جديد' : 'Create your account') : (ar ? 'أهلاً بعودتك' : 'Welcome back')}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'اكتب البريد الإلكتروني وكلمة المرور. لو الحساب جديد هيتسجل ويدخل فورًا؛ ولو موجود سجّل دخول بكلمة مروره.' : 'Enter your email and password. New accounts should be created and signed in immediately; existing accounts sign in with their password.'}</p>
           <div className="mt-5 grid grid-cols-2 rounded-xl bg-secondary/60 p-1">
             <button type="button" onClick={() => { setMode('login'); setError(''); setStatus('') }} className={mode === 'login' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'تسجيل دخول' : 'Sign in'}</button>
-            <button type="button" onClick={() => { setMode('signup'); setAuthMethod('password'); setError(''); setStatus('') }} className={mode === 'signup' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'إنشاء حساب' : 'Create account'}</button>
+            <button type="button" onClick={() => { setMode('signup'); setError(''); setStatus('') }} className={mode === 'signup' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'إنشاء حساب' : 'Create account'}</button>
           </div>
-          {authMethod === 'password' ? <>
-            <form onSubmit={submitAuth} className="mt-5 grid gap-3">
-              <div className="grid gap-1.5"><Label htmlFor="study-auth-email">{ar ? 'البريد الإلكتروني' : 'Email address'}</Label><Input id="study-auth-email" type="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com"/></div>
-              <div className="grid gap-1.5"><Label htmlFor="study-auth-password">{ar ? 'كلمة المرور' : 'Password'}</Label><Input id="study-auth-password" type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} dir="ltr" value={password} onChange={event => setPassword(event.target.value)} required minLength={6} maxLength={72} placeholder={ar ? '٦ أحرف على الأقل' : 'At least 6 characters'}/></div>
-              <Button type="submit" className="mt-1 w-full rounded-xl" disabled={busy || !email.trim() || password.length < 6}><KeyRound data-icon="inline-start"/>{busy ? (ar ? 'جاري التحقق…' : 'Signing in…') : mode === 'signup' ? (ar ? 'إنشاء الحساب' : 'Create account') : (ar ? 'تسجيل الدخول' : 'Sign in')}</Button>
-            </form>
-            {mode === 'login' ? <Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => { setAuthMethod('otp'); setError(''); setStatus(''); setOtpSent(false); setCode('') }}>{ar ? 'الحساب القديم؟ سجّل بكود البريد' : 'Existing email-code account? Use a sign-in code'}</Button> : null}
-          </> : <>
-            {!otpSent ? <form onSubmit={sendOtp} className="mt-5 grid gap-3">
-              <div className="grid gap-1.5"><Label htmlFor="study-auth-email-otp">{ar ? 'البريد الإلكتروني' : 'Email address'}</Label><Input id="study-auth-email-otp" type="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com"/></div>
-              <Button type="submit" className="w-full rounded-xl" disabled={busy || !email.trim() || otpCooldown > 0}><Mail data-icon="inline-start"/>{busy ? (ar ? 'جاري الإرسال…' : 'Sending…') : otpCooldown > 0 ? (ar ? 'استنى ' + otpCooldown + ' ثانية' : 'Wait ' + otpCooldown + 's') : (ar ? 'إرسال كود الدخول' : 'Send sign-in code')}</Button>
-            </form> : <form onSubmit={verifyCode} className="mt-5 grid gap-3">
-              <div className="grid gap-1.5"><Label htmlFor="study-auth-code">{ar ? 'كود التحقق' : 'Verification code'}</Label><Input id="study-auth-code" inputMode="numeric" autoComplete="one-time-code" dir="ltr" value={code} onChange={event => setCode(event.target.value.replace(/\\D/g, '').slice(0, 6))} required minLength={6} maxLength={6} pattern="[0-9]{6}" placeholder="000000"/></div>
-              <Button type="submit" className="w-full rounded-xl" disabled={busy || code.length !== 6}><KeyRound data-icon="inline-start"/>{busy ? (ar ? 'جاري التحقق…' : 'Verifying…') : (ar ? 'تأكيد وتسجيل الدخول' : 'Verify and sign in')}</Button>
-              <p className="text-center text-xs text-muted-foreground">{otpCooldown > 0 ? (ar ? 'يمكن طلب كود آخر بعد ' + otpCooldown + ' ثانية' : 'You can request another code in ' + otpCooldown + 's') : (ar ? 'يمكنك طلب كود جديد الآن' : 'You can request another code now')}</p>
-            </form>}
-            <Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => { setAuthMethod('password'); setError(''); setStatus(''); setOtpSent(false); setCode('') }}>{ar ? 'العودة لتسجيل الدخول بكلمة مرور' : 'Back to password sign-in'}</Button>
-          </>}
-        </> : null}
+          <form onSubmit={submitAuth} className="mt-5 grid gap-3">
+            <div className="grid gap-1.5"><Label htmlFor="study-auth-email">{ar ? 'البريد الإلكتروني' : 'Email address'}</Label><Input id="study-auth-email" type="email" autoComplete="email" dir="ltr" value={email} onChange={event => setEmail(event.target.value)} required placeholder="you@example.com"/></div>
+            <div className="grid gap-1.5"><Label htmlFor="study-auth-password">{ar ? 'كلمة المرور' : 'Password'}</Label><Input id="study-auth-password" type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} dir="ltr" value={password} onChange={event => setPassword(event.target.value)} required minLength={6} maxLength={72} placeholder={ar ? '٦ أحرف على الأقل' : 'At least 6 characters'}/></div>
+            <Button type="submit" className="mt-1 w-full rounded-xl" disabled={busy || !email.trim() || password.length < 6}><KeyRound data-icon="inline-start"/>{busy ? (ar ? 'جاري التحقق…' : 'Signing in…') : mode === 'signup' ? (ar ? 'إنشاء الحساب' : 'Create account') : (ar ? 'تسجيل الدخول' : 'Sign in')}</Button>
+          </form>
+
 
         {stage === 'profile' ? <>
           <h2 className="text-xl font-bold">{ar ? 'جهّز ملفك الشخصي' : 'Set up your profile'}</h2>
