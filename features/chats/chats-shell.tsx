@@ -1,5 +1,5 @@
-import { ChatsExperience } from './chats-experience'
+import { ChatsModeGate } from './chats-mode-gate'
 
 export function ChatsShell() {
-  return <ChatsExperience />
+  return <ChatsModeGate />
 }
