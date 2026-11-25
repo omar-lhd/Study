@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { BookOpen, CheckCircle2, KeyRound, ShieldCheck, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, readCloudSession, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession } from '@/lib/chats/cloud-client'
+import { cloudRest, invokeAdminFunction, readCloudSession, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession } from '@/lib/chats/cloud-client'
 import { readOfflineSnapshot, writeOfflineSnapshot } from '@/lib/chats/offline-store'
 import { OfflineOutboxSync } from './offline-outbox-sync'
 
@@ -34,6 +35,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState('')
   const [retryCount, setRetryCount] = useState(0)
 
+  const pathname = usePathname()
   const userId = session?.user.id
 
   /* Auth/session and access checks synchronize React with the external Supabase session. */
@@ -68,7 +70,15 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         if (!active) return
         const approved = memberships.length > 0
         if (!approved) {
-          void writeOfflineSnapshot(`auth-access:${userId}`, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
+          // Code administrators may enter only the isolated management route;
+          // code-admin status does not grant student/group access.
+          if (pathname.startsWith('/admin/codes')) {
+            try {
+              await invokeAdminFunction({ action: 'check_access' })
+              if (active) { setStage('ready'); return }
+            } catch { /* non-member remains on the activation gate */ }
+          }
+          void writeOfflineSnapshot('auth-access:' + userId, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
           setStage('activation')
           return
         }
@@ -100,7 +110,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     }
     void loadAccess()
     return () => { active = false }
-  }, [hydrated, userId, ar, retryCount])
+  }, [hydrated, userId, ar, retryCount, pathname])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
