@@ -116,7 +116,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         }
         if (!result.session) {
           setMode('login')
-          setStatus(ar ? 'تم إنشاء الحساب. افتح رسالة تأكيد البريد واضغط رابط التأكيد، وبعدها ارجع وسجّل الدخول بنفس البريد وكلمة المرور.' : 'Account created. Open the confirmation email and click its confirmation link, then return and sign in with the same email and password.')
+          setStatus(ar ? 'الحساب اتسجل، لكن Supabase ما زال يطلب تأكيد البريد ويرفض إنشاء جلسة فورية. لازم يتوقف Confirm email في إعدادات Auth؛ مش مطلوب منك تفتح أو تؤكد أي بريد.' : 'The account was created, but Supabase still requires email confirmation and did not return an immediate session. Confirm email must be disabled in Auth settings; you do not need to open or confirm any email.')
           return
         }
       } else {
