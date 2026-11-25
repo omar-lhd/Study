@@ -145,7 +145,9 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       setStatus(ar ? 'بعتنا كود تسجيل الدخول. ما تطلبش كود تاني قبل دقيقة.' : 'Sign-in code sent. Please wait 60 seconds before requesting another.')
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
-      setError(/rate|too many|429/i.test(message)
+      const rateLimited = /rate|too many|429/i.test(message)
+      if (rateLimited) setOtpCooldown(60)
+      setError(rateLimited
         ? (ar ? 'Supabase عامل حد مؤقت على إرسال الأكواد. وقف المحاولات المتكررة؛ التسجيل بكلمة مرور متاح بدون بريد.' : 'Supabase temporarily limited code requests. Stop retrying; password sign-up is available without email.')
         : message || (ar ? 'تعذر إرسال كود الدخول.' : 'Could not send sign-in code.'))
     } finally { setBusy(false) }
