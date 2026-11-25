@@ -203,7 +203,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
             <div className="grid gap-1.5"><Label htmlFor="study-auth-password">{ar ? 'كلمة المرور' : 'Password'}</Label><Input id="study-auth-password" type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} dir="ltr" value={password} onChange={event => setPassword(event.target.value)} required minLength={8} maxLength={128} placeholder={ar ? '٨ أحرف على الأقل' : 'At least 8 characters'}/></div>
             <Button type="submit" className="mt-1 w-full rounded-xl" disabled={busy || !email.trim() || password.length < 8}><KeyRound data-icon="inline-start"/>{busy ? (ar ? 'جاري التحقق…' : 'Signing in…') : mode === 'signup' ? (ar ? 'إنشاء الحساب' : 'Create account') : (ar ? 'تسجيل الدخول' : 'Sign in')}</Button>
           </form>
-
+        </> : null}
 
         {stage === 'profile' ? <>
           <h2 className="text-xl font-bold">{ar ? 'جهّز ملفك الشخصي' : 'Set up your profile'}</h2>
