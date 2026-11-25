@@ -8,8 +8,7 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors }); }
 function fail(message: string, status = 400) { return response({ error: message }, status); }
-type InviteStatusRow = { revoked_at?: string | null; used_at?: string | null; expires_at?: string | null };
-function statusOf(row: InviteStatusRow) {
+function statusOf(row: any) {
   if (row.revoked_at) return "revoked";
   if (row.used_at) return "redeemed";
   if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) return "expired";
@@ -46,6 +45,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const action = String(body.action || "");
+    if (action === "check_access") return response({ authorized: true });
     if (action === "overview") {
       const [codes, batches, logs, groups] = await Promise.all([
         admin.from("invite_codes").select("id,group_id,batch_id,code_label,created_by,created_at,expires_at,used_by,used_at,revoked_at,internal_note"),
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       const { data: batch, error: be } = await admin.from("code_batches").insert({ group_id:groupId,name,description:String(body.description||"").slice(0,500),purpose:String(body.purpose||"").slice(0,120),code_length:codeLength,prefix,expires_at:expiresAt,created_by:user.id }).select().single();
       if (be) throw be;
       const generated: string[] = [];
-      const records: Record<string, unknown>[] = [];
+      const records: any[] = [];
       for (let i=0;i<amount;i++) {
         const code = randomCode(codeLength-prefix.length, prefix);
         generated.push(code);
