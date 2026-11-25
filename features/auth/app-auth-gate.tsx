@@ -172,7 +172,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       const rateLimited = /rate|too many|429/i.test(message)
       if (rateLimited) setOtpCooldown(60)
       setError(rateLimited
-        ? (ar ? 'Supabase عامل حد مؤقت على إرسال الأكواد. وقف المحاولات المتكررة؛ التسجيل بكلمة مرور متاح بدون بريد.' : 'Supabase temporarily limited code requests. Stop retrying; password sign-up is available without email.')
+        ? (ar ? 'Supabase عامل حد مؤقت على إرسال أكواد الدخول. وقف طلب الأكواد؛ تسجيل الدخول بكلمة مرور لا يرسل بريدًا، أما الحساب الجديد فسيحتاج رسالة تأكيد.' : 'Supabase temporarily limited sign-in code requests. Stop requesting codes; password sign-in sends no email, while new accounts require a confirmation email.')
         : message || (ar ? 'تعذر إرسال كود الدخول.' : 'Could not send sign-in code.'))
     } finally { setBusy(false) }
   }
@@ -240,7 +240,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
         {stage === 'auth' ? <>
           <h2 className="text-xl font-bold">{authMethod === 'otp' ? (ar ? 'تسجيل الدخول بكود البريد' : 'Sign in with email code') : mode === 'signup' ? (ar ? 'إنشاء حساب جديد' : 'Create your account') : (ar ? 'أهلاً بعودتك' : 'Welcome back')}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{authMethod === 'otp' ? (ar ? 'للحسابات القديمة اللي اتعملت بكود البريد، استخدم كود تسجيل الدخول. إرسال الأكواد محدود؛ استخدم كلمة المرور لتسجيل أو إنشاء حساب بدون إرسال بريد.' : 'Use a sign-in code for existing email-code accounts. Code delivery is rate-limited; password sign-in and signup do not send email.') : (ar ? 'سجّل بالبريد الإلكتروني وكلمة مرور. إنشاء حساب جديد يرسل رسالة تأكيد؛ بعد تأكيد البريد سجّل الدخول، وهنراجع عضويتك.' : 'Use your email and password. New accounts receive an email confirmation link; confirm your email, then sign in and we will check your membership.')}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{authMethod === 'otp' ? (ar ? 'للحسابات القديمة، يمكنك تسجيل الدخول بكود البريد لكن إرسال الأكواد عليه حد مؤقت. استخدم كلمة المرور لتسجيل الدخول؛ وإنشاء حساب جديد يرسل رسالة تأكيد بالبريد.' : 'Use a sign-in code for older email-code accounts, but code delivery may be temporarily limited. Password sign-in does not send email; new password signups receive an email confirmation link.') : (ar ? 'سجّل بالبريد الإلكتروني وكلمة مرور. إنشاء حساب جديد يرسل رسالة تأكيد؛ بعد تأكيد البريد سجّل الدخول، وهنراجع عضويتك.' : 'Use your email and password. New accounts receive an email confirmation link; confirm your email, then sign in and we will check your membership.')}</p>
           <div className="mt-5 grid grid-cols-2 rounded-xl bg-secondary/60 p-1">
             <button type="button" onClick={() => { setMode('login'); setError(''); setStatus('') }} className={mode === 'login' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'تسجيل دخول' : 'Sign in'}</button>
             <button type="button" onClick={() => { setMode('signup'); setAuthMethod('password'); setError(''); setStatus('') }} className={mode === 'signup' ? 'rounded-lg bg-card px-3 py-2 text-sm font-semibold shadow-sm' : 'rounded-lg px-3 py-2 text-sm text-muted-foreground'}>{ar ? 'إنشاء حساب' : 'Create account'}</button>
