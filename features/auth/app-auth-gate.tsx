@@ -114,11 +114,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
           return
         }
-        if (!result.session) {
-          setMode('login')
-          setStatus(ar ? 'الحساب اتسجل، لكن Supabase ما زال يطلب تأكيد البريد ويرفض إنشاء جلسة فورية. لازم يتوقف Confirm email في إعدادات Auth؛ مش مطلوب منك تفتح أو تؤكد أي بريد.' : 'The account was created, but Supabase still requires email confirmation and did not return an immediate session. Confirm email must be disabled in Auth settings; you do not need to open or confirm any email.')
-          return
-        }
+
       } else {
         await signInWithPassword(email, password)
       }
@@ -137,7 +133,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       } else if (/invalid login credentials/i.test(message)) {
         setError(ar ? 'البريد أو كلمة المرور غير صحيحين.' : 'Email or password is incorrect.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
-        setError(ar ? 'خدمة Supabase Auth رفضت الطلب مؤقتًا بسبب حدّ المحاولات على الشبكة أو البريد. ده مش معناه إن الإيميل اتسجل؛ وقف المحاولات لحد ما الحد يتجدد، وبعدها جرّب مرة واحدة.' : 'Supabase Auth temporarily rejected requests due to its network or email rate limit. This does not mean the email is registered; stop retrying until the limit resets, then try once.')
+        setError(ar ? 'محاولات إنشاء الحساب من نفس الشبكة وصلت للحد المؤقت. استنى شوية ثم جرّب مرة واحدة.' : 'Signup attempts from this network reached a temporary limit. Wait a bit, then try once.')
       } else {
         setError(message || (ar ? 'تعذر تسجيل الدخول.' : 'Could not authenticate.'))
       }
