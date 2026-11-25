@@ -74,6 +74,32 @@ async function authRequest(path: string, body: Record<string, unknown>) {
   return data
 }
 
+
+
+function sessionFromAuthResponse(data: Record<string, any>): CloudAuthSession {
+  if (!data.access_token || !data.refresh_token || !data.user?.id) {
+    throw new Error('Supabase did not return an active session. Turn off email confirmations for password sign-up, then try again.')
+  }
+  const session: CloudAuthSession = {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: typeof data.expires_at === 'number' ? data.expires_at : Math.floor(Date.now() / 1000) + Number(data.expires_in ?? 3600),
+    user: data.user,
+  }
+  writeCloudSession(session)
+  return session
+}
+
+export async function signUpWithPassword(email: string, password: string): Promise<CloudAuthSession> {
+  const data = await authRequest('signup', { email: email.trim().toLowerCase(), password })
+  return sessionFromAuthResponse(data)
+}
+
+export async function signInWithPassword(email: string, password: string): Promise<CloudAuthSession> {
+  const data = await authRequest('token?grant_type=password', { email: email.trim().toLowerCase(), password })
+  return sessionFromAuthResponse(data)
+}
+
 export async function requestEmailOtp(email: string, createUser = false) {
   // Supabase uses the configured Site URL (often localhost in development) unless
   // redirect_to is supplied. Bind the email link to the exact app origin in use,
