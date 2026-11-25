@@ -58,7 +58,9 @@ export default function CodeAdminPage() {
   const [form,setForm]=useState({batchName:'',description:'',purpose:'',groupId:'',count:'10',codeLength:'16',prefix:'',label:'',note:'',expiresAt:''})
   const [newAdmin,setNewAdmin]=useState('')
   const [newGroupName,setNewGroupName]=useState('')
-  const [noteEdit,setNoteEdit]=useState<{id:string;note:string}|null>(null)\n  const [selectedCode,setSelectedCode]=useState<Code|null>(null)\n  const [codeHistory,setCodeHistory]=useState<Audit[]>([])
+  const [noteEdit,setNoteEdit]=useState<{id:string;note:string}|null>(null)
+  const [selectedCode,setSelectedCode]=useState<Code|null>(null)
+  const [codeHistory,setCodeHistory]=useState<Audit[]>([])
   const [showCodes,setShowCodes]=useState(false)
 
   const call=useCallback(async <T,>(payload:Record<string,unknown>)=>invokeAdminFunction<T>(payload),[])
@@ -99,7 +101,8 @@ export default function CodeAdminPage() {
   useEffect(()=>{if(tab==='admins')void loadAdmins()},[tab,loadAdmins])
 
   const notify=(message:string)=>{setNotice(message);window.setTimeout(()=>setNotice(''),3500)}
-  const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);notify('Copied to clipboard')}catch{setError('Clipboard access was denied')}}\n  const viewCode=async(code:Code)=>{setSelectedCode(code);setCodeHistory([]);try{const d=await call<{items:Audit[]}>({action:'code_history',codeId:code.id});setCodeHistory(d.items)}catch(e){setError(e instanceof Error?e.message:'Could not load code history')}}
+  const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);notify('Copied to clipboard')}catch{setError('Clipboard access was denied')}}
+  const viewCode=async(code:Code)=>{setSelectedCode(code);setCodeHistory([]);try{const d=await call<{items:Audit[]}>({action:'code_history',codeId:code.id});setCodeHistory(d.items)}catch(e){setError(e instanceof Error?e.message:'Could not load code history')}}
   const generate=async()=>{
     if(!form.groupId){setError('There is no group to associate codes with yet. Create a group in the community first.');return}
     setBusy(true);setError('');setGenerated(null)
