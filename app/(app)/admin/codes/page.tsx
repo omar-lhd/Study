@@ -47,13 +47,17 @@ export default function CodeAdminPage() {
   const [page,setPage]=useState(1)
   const [search,setSearch]=useState('')
   const [filter,setFilter]=useState('all')
-  const [batchFilter,setBatchFilter]=useState('')\n  const [groupFilter,setGroupFilter]=useState('')\n  const [dateFrom,setDateFrom]=useState('')\n  const [dateTo,setDateTo]=useState('')
+  const [batchFilter,setBatchFilter]=useState('')
+  const [groupFilter,setGroupFilter]=useState('')
+  const [dateFrom,setDateFrom]=useState('')
+  const [dateTo,setDateTo]=useState('')
   const [admins,setAdmins]=useState<Admin[]>([])
   const [auditRows,setAuditRows]=useState<Audit[]>([])
   const [auditFilter,setAuditFilter]=useState('')
   const [generated,setGenerated]=useState<{batch:Batch;codes:string[];codeIds:string[]}|null>(null)
   const [form,setForm]=useState({batchName:'',description:'',purpose:'',groupId:'',count:'10',codeLength:'16',prefix:'',label:'',note:'',expiresAt:''})
-  const [newAdmin,setNewAdmin]=useState('')\n  const [newGroupName,setNewGroupName]=useState('')
+  const [newAdmin,setNewAdmin]=useState('')
+  const [newGroupName,setNewGroupName]=useState('')
   const [noteEdit,setNoteEdit]=useState<{id:string;note:string}|null>(null)
   const [showCodes,setShowCodes]=useState(false)
 
@@ -104,7 +108,8 @@ export default function CodeAdminPage() {
     setBusy(true);try{const d=await call<{revokedCount:number}>({action:'revoke_batch',batchId:id});notify(d.revokedCount+' unused codes revoked');await loadBatches();await loadOverview()}catch(e){setError(e instanceof Error?e.message:'Batch revoke failed')}finally{setBusy(false)}
   }
   const saveNote=async()=>{if(!noteEdit)return;setBusy(true);try{await call({action:'update_note',codeId:noteEdit.id,note:noteEdit.note});setNoteEdit(null);notify('Note saved');await loadCodes()}catch(e){setError(e instanceof Error?e.message:'Could not save note')}finally{setBusy(false)}}
-  const addAdmin=async()=>{setBusy(true);try{await call({action:'add_admin',userId:newAdmin.trim()});setNewAdmin('');notify('Administrator added');await loadAdmins()}catch(e){setError(e instanceof Error?e.message:'Could not add administrator')}finally{setBusy(false)}}\n  const createGroup=async()=>{const name=newGroupName.trim();if(name.length<2)return;setBusy(true);try{const d=await call<{group:Group}>({action:'create_group',name});setGroups(g=>[d.group,...g]);setForm(v=>({...v,groupId:d.group.id}));setNewGroupName('');notify('Group created');await loadOverview()}catch(e){setError(e instanceof Error?e.message:'Could not create group')}finally{setBusy(false)}}
+  const addAdmin=async()=>{setBusy(true);try{await call({action:'add_admin',userId:newAdmin.trim()});setNewAdmin('');notify('Administrator added');await loadAdmins()}catch(e){setError(e instanceof Error?e.message:'Could not add administrator')}finally{setBusy(false)}}
+  const createGroup=async()=>{const name=newGroupName.trim();if(name.length<2)return;setBusy(true);try{const d=await call<{group:Group}>({action:'create_group',name});setGroups(g=>[d.group,...g]);setForm(v=>({...v,groupId:d.group.id}));setNewGroupName('');notify('Group created');await loadOverview()}catch(e){setError(e instanceof Error?e.message:'Could not create group')}finally{setBusy(false)}}
   const revokeAdmin=async(id:string)=>{if(!window.confirm('Revoke this administrator’s code-management access?'))return;setBusy(true);try{await call({action:'revoke_admin',userId:id});notify('Administrator access revoked');await loadAdmins()}catch(e){setError(e instanceof Error?e.message:'Could not revoke administrator')}finally{setBusy(false)}}
 
   const tabs: {id:Tab;label:string;icon:typeof KeyRound}[]=[{id:'overview',label:'Overview',icon:BarChart3},{id:'generate',label:'Generate',icon:Plus},{id:'codes',label:'Codes',icon:KeyRound},{id:'batches',label:'Batches',icon:Layers3},{id:'audit',label:'Audit log',icon:Activity},{id:'admins',label:'Administrators',icon:ShieldCheck}]
