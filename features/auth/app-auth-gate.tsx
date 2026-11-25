@@ -117,15 +117,27 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     event.preventDefault()
     setBusy(true); setError(''); setStatus('')
     try {
-      if (mode === 'signup') await signUpWithPassword(email, password)
-      else await signInWithPassword(email, password)
+      if (mode === 'signup') {
+        const session = await signUpWithPassword(email, password)
+        if (!session) {
+          // Supabase created the user and sent its confirmation code, but does not
+          // issue a session until that code is verified when Confirm email is on.
+          setAuthMethod('otp')
+          setOtpSent(true)
+          setCode('')
+          setStatus(ar ? 'الحساب اتعمل وبعتنا كود تأكيد البريد. اكتب الكود اللي وصلك عشان تكمل تسجيل الدخول.' : 'Account created. A confirmation code was sent to your email; enter it to finish signing in.')
+          return
+        }
+      } else {
+        await signInWithPassword(email, password)
+      }
       setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
       if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
         setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
-      } else if (/email confirmations? enabled|active session/i.test(message)) {
-        setError(ar ? 'تأكيد البريد ما زال مفعّلًا في Supabase. اقفل Confirm email حتى يتم تسجيل الحساب بكلمة مرور بدون إرسال بريد.' : 'Email confirmation is still enabled in Supabase. Turn off Confirm email to create a password account without sending email.')
+      } else if (/invalid login credentials/i.test(message)) {
+        setError(ar ? 'البريد أو كلمة المرور غير صحيحين. لو حسابك القديم اتعمل بكود البريد فقط، اضغط «الحساب القديم؟ سجّل بكود البريد» بدل كلمة المرور.' : 'Email or password is incorrect. If this older account was created with an email code, use “Existing email-code account?” instead of password sign-in.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
         setError(ar ? 'Supabase فرض حدًا مؤقتًا على محاولات الدخول. توقف عن المحاولات المتكررة وانتظر انتهاء الحد؛ التسجيل بكلمة مرور لا يرسل رسالة بريد.' : 'Supabase temporarily rate-limited authentication attempts. Stop repeated attempts and let the limit reset; password sign-up does not send an email.')
       } else {
