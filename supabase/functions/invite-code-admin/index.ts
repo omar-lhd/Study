@@ -88,8 +88,9 @@ Deno.serve(async (req) => {
       if (!name || name.length>100) return fail("Batch name is required (max 100 characters)");
       const { data: group, error: ge } = await admin.from("study_groups").select("id").eq("id",groupId).maybeSingle();
       if (ge) throw ge; if (!group) return fail("Choose an existing group");
-      const expiresAt = body.expiresAt ? new Date(body.expiresAt).toISOString() : null;
-      if (expiresAt && !Number.isFinite(new Date(expiresAt).getTime())) return fail("Invalid expiry date");
+      const expiryDate = body.expiresAt ? new Date(body.expiresAt) : null;
+      if (expiryDate && !Number.isFinite(expiryDate.getTime())) return fail("Invalid expiry date");
+      const expiresAt = expiryDate ? expiryDate.toISOString() : null;
       const { data: batch, error: be } = await admin.from("code_batches").insert({ group_id:groupId,name,description:String(body.description||"").slice(0,500),purpose:String(body.purpose||"").slice(0,120),code_length:codeLength,prefix,expires_at:expiresAt,created_by:user.id }).select().single();
       if (be) throw be;
       const generated: string[] = [];
@@ -146,19 +147,18 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return fail("Enter a valid Supabase Auth UUID");
       const {data: target,error:te}=await admin.auth.admin.getUserById(id);
       if(te||!target.user) return fail("Auth user not found",404);
-      const {error}=await admin.from("code_admins").insert({user_id:id,added_by:user.id});
-      if(error) { if(error.code==="23505") return fail("This user is already an administrator"); throw error; }
-      await audit(user.id,"admin_added",{metadata:{target_user_id:id}});
+      const {error}=await admin.rpc("admin_add_code_admin",{p_user_id:id,p_actor:user.id});
+      if(error) { if(error.code==="23505") return fail("This user is already an administrator"); if(error.message==="Auth user not found") return fail("Auth user not found",404); throw error; }
       return response({success:true});
     }
     if (action === "revoke_admin") {
       const id=String(body.userId||"");
-      if(id===user.id) return fail("You cannot revoke your own administrator access");
-      const {count,error:ce}=await admin.from("code_admins").select("user_id",{count:"exact",head:true});
-      if(ce) throw ce; if((count||0)<=1) return fail("Cannot revoke the last administrator");
-      const {data:target,error}=await admin.from("code_admins").delete().eq("user_id",id).select("user_id").maybeSingle();
-      if(error) throw error; if(!target) return fail("Administrator not found",404);
-      await audit(user.id,"admin_revoked",{metadata:{target_user_id:id}});
+      const {error}=await admin.rpc("admin_revoke_code_admin",{p_user_id:id,p_actor:user.id});
+      if(error) {
+        if(error.message==="You cannot revoke your own administrator access"||error.message==="Cannot revoke the last administrator") return fail(error.message);
+        if(error.message==="Administrator not found") return fail(error.message,404);
+        throw error;
+      }
       return response({success:true});
     }
     if (action === "audit") {
