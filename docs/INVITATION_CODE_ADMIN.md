@@ -49,4 +49,4 @@ The authenticated app gate checks membership as before. If a non-member is a cod
 - A rollback-only SQL test verified the last-administrator revocation guard.
 - GitHub CI passed on the feature branch: TypeScript, ESLint, unit tests, and production build.
 - Vercel preview build is READY. Authenticated browser E2E against a live user session remains the final manual acceptance step.
-- Additional migration: `supabase/migrations/20261125133000_code_admin_group_audit_action.sql`.
+- Additional migrations: `supabase/migrations/20261125133000_code_admin_group_audit_action.sql` (group-created audit event) and `supabase/migrations/20261125134500_code_admin_bootstrap_audit.sql` (initial administrator audit record).
