@@ -83,15 +83,20 @@ export default function CodeAdminPage() {
   const loadAudit=useCallback(async()=>{try{const d=await call<{items:Audit[]}>({action:'audit',page:1,pageSize:50,actionFilter:auditFilter||undefined});setAuditRows(d.items)}catch(e){setError(e instanceof Error?e.message:'Could not load audit logs')}},[call,auditFilter])
   const loadAdmins=useCallback(async()=>{try{const d=await call<{admins:Admin[]}>({action:'list_admins'});setAdmins(d.admins)}catch(e){setError(e instanceof Error?e.message:'Could not load administrators')}},[call])
   // The callbacks perform asynchronous I/O; their state updates occur after the effect's synchronous phase.
-  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(()=>{void loadOverview()},[loadOverview])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{void loadOverview()},[loadOverview])
   // The callbacks perform asynchronous I/O; their state updates occur after the effect's synchronous phase.
-  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(()=>{if(tab==='codes')void loadCodes()},[tab,loadCodes])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{if(tab==='codes')void loadCodes()},[tab,loadCodes])
   // The callbacks perform asynchronous I/O; their state updates occur after the effect's synchronous phase.
-  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(()=>{if(tab==='batches')void loadBatches()},[tab,loadBatches])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{if(tab==='batches')void loadBatches()},[tab,loadBatches])
   // The callbacks perform asynchronous I/O; their state updates occur after the effect's synchronous phase.
-  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(()=>{if(tab==='audit')void loadAudit()},[tab,loadAudit])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{if(tab==='audit')void loadAudit()},[tab,loadAudit])
   // The callbacks perform asynchronous I/O; their state updates occur after the effect's synchronous phase.
-  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(()=>{if(tab==='admins')void loadAdmins()},[tab,loadAdmins])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{if(tab==='admins')void loadAdmins()},[tab,loadAdmins])
 
   const notify=(message:string)=>{setNotice(message);window.setTimeout(()=>setNotice(''),3500)}
   const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);notify('Copied to clipboard')}catch{setError('Clipboard access was denied')}}
