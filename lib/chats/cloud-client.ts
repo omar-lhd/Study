@@ -76,7 +76,7 @@ async function authRequest(path: string, body: Record<string, unknown>) {
 
 
 
-type AuthResponse = { access_token?: string; refresh_token?: string; expires_at?: number; expires_in?: number; user?: { id: string; email?: string } }
+type AuthResponse = { access_token?: string; refresh_token?: string; expires_at?: number; expires_in?: number; user?: { id: string; email?: string; identities?: Array<{ id?: string; provider?: string }> } }
 
 function sessionFromAuthResponse(data: AuthResponse): CloudAuthSession {
   if (!data.access_token || !data.refresh_token || !data.user?.id) {
@@ -92,12 +92,51 @@ function sessionFromAuthResponse(data: AuthResponse): CloudAuthSession {
   return session
 }
 
-export async function signUpWithPassword(email: string, password: string): Promise<CloudAuthSession | null> {
-  const data = await authRequest('signup', { email: email.trim().toLowerCase(), password })
-  // With Confirm email enabled, Supabase creates the user and sends a confirmation
-  // code but intentionally does not issue a session until the code is verified.
-  if (!data.access_token || !data.refresh_token || !data.user?.id) return null
-  return sessionFromAuthResponse(data)
+export async function signUpWithPassword(email: string, password: string): Promise<{ session: CloudAuthSession | null; existingAccount: boolean }> {
+  const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm` : undefined
+  const redirectQuery = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
+  const data = await authRequest(`signup${redirectQuery}`, { email: email.trim().toLowerCase(), password }) as AuthResponse
+
+  // Supabase intentionally returns an empty identities array for an already
+  // registered email when email confirmations are enabled (anti-enumeration behavior).
+  if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
+    return { session: null, existingAccount: true }
+  }
+
+  // With Confirm email enabled, successful signup has no session until the
+  // confirmation link is opened. Do not route this user to the OTP-code flow.
+  if (!data.access_token || !data.refresh_token || !data.user?.id) {
+    return { session: null, existingAccount: false }
+  }
+  return { session: sessionFromAuthResponse(data), existingAccount: false }
+}
+
+export async function completeEmailConfirmationFromUrl(): Promise<CloudAuthSession> {
+  if (typeof window === 'undefined') throw new Error('Email confirmation is only available in a browser')
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const query = new URLSearchParams(window.location.search)
+  const authError = fragment.get('error_description') ?? query.get('error_description') ?? fragment.get('error') ?? query.get('error')
+  if (authError) throw new Error(decodeURIComponent(authError.replace(/\+/g, ' ')))
+
+  const accessToken = fragment.get('access_token') ?? query.get('access_token')
+  const refreshToken = fragment.get('refresh_token') ?? query.get('refresh_token')
+  if (!accessToken || !refreshToken) {
+    throw new Error('Confirmation link is missing its session. Open the latest confirmation email and try again.')
+  }
+
+  const { url, key } = config()
+  const response = await fetch(`${url}/auth/v1/user`, {
+    headers: { apikey: key, Authorization: `Bearer ${accessToken}` },
+  })
+  const user = await response.json().catch(() => ({}))
+  if (!response.ok || !user?.id) throw new Error('Email confirmed, but the session could not be loaded. Please sign in with your email and password.')
+
+  const expiresIn = Number(fragment.get('expires_in') ?? query.get('expires_in') ?? 3600)
+  const expiresAt = Number(fragment.get('expires_at') ?? query.get('expires_at') ?? Math.floor(Date.now() / 1000) + expiresIn)
+  const session: CloudAuthSession = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt, user }
+  writeCloudSession(session)
+  window.history.replaceState({}, document.title, window.location.pathname)
+  return session
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<CloudAuthSession> {
