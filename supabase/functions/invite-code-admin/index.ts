@@ -66,6 +66,13 @@ Deno.serve(async (req) => {
       let q = admin.from("invite_codes").select("id,group_id,batch_id,code_label,created_by,created_at,expires_at,used_by,used_at,revoked_at,internal_note", { count: "exact" }).order("created_at", { ascending: false });
       if (body.batchId) q = q.eq("batch_id", body.batchId);
       if (body.groupId) q = q.eq("group_id", body.groupId);
+      if (body.dateFrom) q = q.gte("created_at", String(body.dateFrom)+"T00:00:00.000Z");
+      if (body.dateTo) q = q.lte("created_at", String(body.dateTo)+"T23:59:59.999Z");
+      const now = new Date().toISOString();
+      if (body.status === "redeemed") q = q.not("used_at","is",null);
+      if (body.status === "revoked") q = q.not("revoked_at","is",null);
+      if (body.status === "expired") q = q.is("used_at",null).is("revoked_at",null).not("expires_at","is",null).lte("expires_at",now);
+      if (body.status === "available") q = q.is("used_at",null).is("revoked_at",null).or("expires_at.is.null,expires_at.gt."+now);
       if (body.search) q = q.or("code_label.ilike.%"+String(body.search).replace(/[%,()]/g,"")+"%,internal_note.ilike.%"+String(body.search).replace(/[%,()]/g,"")+"%");
       const { data, error, count } = await q.range((page-1)*pageSize, page*pageSize-1);
       if (error) throw error;
