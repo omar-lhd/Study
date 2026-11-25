@@ -71,6 +71,13 @@ Deno.serve(async (req) => {
       if (error) throw error;
       return response({ items: (data||[]).map((r)=>({...r,status:statusOf(r)})), total:count||0, page, pageSize });
     }
+    if (action === "create_group") {
+      const name = String(body.name || "").trim();
+      if (name.length < 2 || name.length > 80) return fail("Group name must be 2 to 80 characters");
+      const { data, error } = await admin.rpc("admin_create_study_group", { p_name: name, p_creator: user.id });
+      if (error) throw error;
+      return response({ group: data });
+    }
     if (action === "generate") {
       const groupId = String(body.groupId||"");
       const amount = Math.max(1, Math.min(200, Number(body.count)||1));
