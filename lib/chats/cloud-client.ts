@@ -76,7 +76,9 @@ async function authRequest(path: string, body: Record<string, unknown>) {
 
 
 
-function sessionFromAuthResponse(data: Record<string, any>): CloudAuthSession {
+type AuthResponse = { access_token?: string; refresh_token?: string; expires_at?: number; expires_in?: number; user?: { id: string; email?: string } }
+
+function sessionFromAuthResponse(data: AuthResponse): CloudAuthSession {
   if (!data.access_token || !data.refresh_token || !data.user?.id) {
     throw new Error('Supabase did not return an active session. Turn off email confirmations for password sign-up, then try again.')
   }
