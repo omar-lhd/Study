@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'\nimport Link from 'next/link'
 import { BookOpen, LoaderCircle } from 'lucide-react'
 import { completeEmailConfirmationFromUrl } from '@/lib/chats/cloud-client'
 
@@ -29,7 +29,7 @@ export default function EmailConfirmationPage() {
         {error ? (
           <>
             <p role="alert" className="mt-4 rounded-xl bg-danger/10 p-4 text-sm leading-6 text-danger">{error}</p>
-            <a href="/" className="mt-5 inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground">العودة لتسجيل الدخول</a>
+            <Link href="/" className="mt-5 inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground">العودة لتسجيل الدخول</Link>
           </>
         ) : (
           <p role="status" className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
