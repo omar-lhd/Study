@@ -38,3 +38,15 @@
 - Edge Function is deployed and JWT verification is enabled.
 - Vercel preview branch: `feature/admin-invitation-code-dashboard`; check the branch deployment card and build logs before considering the frontend production-ready.
 - Important remaining validation: authenticated browser end-to-end tests for generation/export/redeem/revoke and admin-management, and confirmation of successful Vercel build. No plaintext code has been generated during implementation.
+
+## Access without student membership
+The authenticated app gate checks membership as before. If a non-member is a code admin, the gate exposes only the `/admin/codes` route after a server-side `check_access` Edge Function call. The activation screen displays an admin entry link for that verified account. Code-admin status does not unlock student routes or change existing membership.
+
+## Additional validation
+- A rollback-only SQL test verified first redemption succeeds, second redemption is rejected as already used, and a redemption audit event is created.
+- Rollback-only SQL tests verified revoked and expired codes are rejected.
+- A rollback-only SQL test verified the group-creation RPC and its audit event.
+- A rollback-only SQL test verified the last-administrator revocation guard.
+- GitHub CI passed on the feature branch: TypeScript, ESLint, unit tests, and production build.
+- Vercel preview build is READY. Authenticated browser E2E against a live user session remains the final manual acceptance step.
+- Additional migration: `supabase/migrations/20261125133000_code_admin_group_audit_action.sql`.
