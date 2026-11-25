@@ -80,7 +80,7 @@ type AuthResponse = { access_token?: string; refresh_token?: string; expires_at?
 
 function sessionFromAuthResponse(data: AuthResponse): CloudAuthSession {
   if (!data.access_token || !data.refresh_token || !data.user?.id) {
-    throw new Error('Supabase did not return an active session. Turn off email confirmations for password sign-up, then try again.')
+    throw new Error('Supabase did not return an active session. Your email may still need confirmation; open the confirmation link and sign in again.')
   }
   const session: CloudAuthSession = {
     access_token: data.access_token,
