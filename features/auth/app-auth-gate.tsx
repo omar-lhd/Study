@@ -34,6 +34,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [retryCount, setRetryCount] = useState(0)
+  const [codeAdmin, setCodeAdmin] = useState(false)
 
   const pathname = usePathname()
   const userId = session?.user.id
@@ -72,12 +73,11 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         if (!approved) {
           // Code administrators may enter only the isolated management route;
           // code-admin status does not grant student/group access.
-          if (pathname.startsWith('/admin/codes')) {
-            try {
-              await invokeAdminFunction({ action: 'check_access' })
-              if (active) { setStage('ready'); return }
-            } catch { /* non-member remains on the activation gate */ }
-          }
+          try {
+            await invokeAdminFunction({ action: 'check_access' })
+            if (active) setCodeAdmin(true)
+            if (pathname.startsWith('/admin/codes') && active) { setStage('ready'); return }
+          } catch { /* non-admin remains on the activation gate */ }
           void writeOfflineSnapshot('auth-access:' + userId, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
           setStage('activation')
           return
@@ -227,7 +227,8 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           <h2 className="text-xl font-bold">{ar ? 'حسابك اتجهّز — باقي اعتماد العضوية' : 'Account ready — membership approval pending'}</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'تم إنشاء حسابك وحفظ ملفك الشخصي. التطبيق خاص بالأعضاء المعتمدين فقط؛ شاشة وأكواد التفعيل هتتربط لما نظام التفعيل يتنفذ. لحد وقتها لازم مسؤول المجتمع يضيف حسابك كعضو معتمد. مش هنفتح التطبيق أو المحادثات قبل الاعتماد.' : 'Your account is created and profile is saved. Study is private; activation-code redemption will be connected when that system is implemented. Until then, an administrator must add your account as an approved member. The app and chats stay locked until approval.'}</p>
           {error ? <Button type="button" variant="outline" className="mt-4 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }}>{ar ? 'إعادة التحقق' : 'Retry access check'}</Button> : null}
-          <div className="mt-5 grid gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4"><Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label><Input id="study-activation-code" disabled placeholder={ar ? 'هيتفعّل بعد تنفيذ نظام الأكواد' : 'Enabled when activation codes are implemented'} dir="ltr"/><Button type="button" disabled className="w-full">{ar ? 'تفعيل العضوية — قريبًا' : 'Activate membership — coming later'}</Button><p className="text-xs leading-5 text-muted-foreground">{ar ? 'مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية. حاليًا العضو المعتمد لازم يتضاف من مسؤول المجتمع.' : 'No fake code or membership bypass. For now, an administrator must approve members.'}</p></div>
+          <div className="mt-5 grid gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4"><Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label><Input id="study-activation-code" disabled placeholder={ar ? 'هيتفعّل بعد تنفيذ نظام الأكواد' : 'Enabled when activation codes are implemented'} dir="ltr"/><Button type="button" disabled className="w-full">{ar ? 'تفعيل العضوية — قريبًا' : 'Activate membership — coming later'}</Button><p className="text-xs leading-5 text-muted-foreground">{ar ? 'مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية. حاليًا العضو المعتمد لازم يتضاف من مسؤول المجتمع.' : 'No fake code or membership bypass. For now, an administrator must approve members.'}</p>          {codeAdmin ? <a href="/admin/codes" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><ShieldCheck className="size-4"/>{ar ? 'فتح لوحة إدارة الأكواد' : 'Open code administration'}</a> : null}
+</div>
         </> : null}
 
         {status ? <p role="status" className="mt-4 rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{status}</p> : null}
