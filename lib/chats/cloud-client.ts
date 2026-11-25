@@ -93,22 +93,17 @@ function sessionFromAuthResponse(data: AuthResponse): CloudAuthSession {
 }
 
 export async function signUpWithPassword(email: string, password: string): Promise<{ session: CloudAuthSession | null; existingAccount: boolean }> {
-  const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm` : undefined
-  const redirectQuery = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
-  const data = await authRequest(`signup${redirectQuery}`, { email: email.trim().toLowerCase(), password }) as AuthResponse
-
-  // Supabase intentionally returns an empty identities array for an already
-  // registered email when email confirmations are enabled (anti-enumeration behavior).
-  if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
-    return { session: null, existingAccount: true }
-  }
-
-  // With Confirm email enabled, successful signup has no session until the
-  // confirmation link is opened. Do not route this user to the OTP-code flow.
-  if (!data.access_token || !data.refresh_token || !data.user?.id) {
-    return { session: null, existingAccount: false }
-  }
-  return { session: sessionFromAuthResponse(data), existingAccount: false }
+  const { url, key } = config()
+  const response = await fetch(`${url}/functions/v1/instant-password-signup`, {
+    method: 'POST',
+    headers: { apikey: key, 'Content-Type': ' application/json'.trim() },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+  })
+  const data = await response.json().catch(() => ({})) as { existingAccount?: boolean; error?: string }
+  if (!response.ok) throw new Error(data.error || 'Could not create account')
+  if (data.existingAccount) return { session: null, existingAccount: true }
+  const session = await signInWithPassword(email, password)
+  return { session, existingAccount: false }
 }
 
 export async function completeEmailConfirmationFromUrl(): Promise<CloudAuthSession> {
