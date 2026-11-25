@@ -103,3 +103,31 @@ begin
 end; $$;
 revoke all on function public.admin_create_study_group(text,uuid) from public,anon,authenticated;
 grant execute on function public.admin_create_study_group(text,uuid) to service_role;
+
+-- Transactional administrator management; the last-admin guard is serialized.
+create or replace function public.admin_add_code_admin(p_user_id uuid,p_actor uuid)
+returns void language plpgsql security definer set search_path=pg_catalog,public
+as $$
+begin
+ if not exists(select 1 from auth.users where id=p_user_id) then raise exception 'Auth user not found'; end if;
+ insert into public.code_admins(user_id,added_by) values(p_user_id,p_actor);
+ insert into public.code_audit_logs(actor_id,action,metadata) values(p_actor,'admin_added',jsonb_build_object('target_user_id',p_user_id));
+end; $$;
+revoke all on function public.admin_add_code_admin(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.admin_add_code_admin(uuid,uuid) to service_role;
+
+create or replace function public.admin_revoke_code_admin(p_user_id uuid,p_actor uuid)
+returns void language plpgsql security definer set search_path=pg_catalog,public
+as $$
+declare v_count integer;
+begin
+ if p_user_id=p_actor then raise exception 'You cannot revoke your own administrator access'; end if;
+ lock table public.code_admins in exclusive mode;
+ select count(*) into v_count from public.code_admins;
+ if v_count<=1 then raise exception 'Cannot revoke the last administrator'; end if;
+ delete from public.code_admins where user_id=p_user_id;
+ if not found then raise exception 'Administrator not found'; end if;
+ insert into public.code_audit_logs(actor_id,action,metadata) values(p_actor,'admin_revoked',jsonb_build_object('target_user_id',p_user_id));
+end; $$;
+revoke all on function public.admin_revoke_code_admin(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.admin_revoke_code_admin(uuid,uuid) to service_role;
