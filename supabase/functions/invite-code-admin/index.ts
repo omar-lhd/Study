@@ -8,7 +8,8 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors }); }
 function fail(message: string, status = 400) { return response({ error: message }, status); }
-type InviteStatusRow = { revoked_at?: string | null; used_at?: string | null; expires_at?: string | null };\nfunction statusOf(row: InviteStatusRow) {
+type InviteStatusRow = { revoked_at?: string | null; used_at?: string | null; expires_at?: string | null };
+function statusOf(row: InviteStatusRow) {
   if (row.revoked_at) return "revoked";
   if (row.used_at) return "redeemed";
   if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) return "expired";
