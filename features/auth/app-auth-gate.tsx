@@ -139,9 +139,16 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
-      if (/user already registered|already registered|email already exists/i.test(message)) {\n        setMode('login'); setAuthMethod('password'); setOtpSent(false)\n        setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')\n      } else if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
+      if (/user already registered|already registered|email already exists/i.test(message)) {
+        setMode('login')
+        setAuthMethod('password')
+        setOtpSent(false)
+        setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
+      } else if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
         setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
-      } else if (/email not confirmed|email_not_confirmed|not confirmed/i.test(message)) {\n        setError(ar ? 'لازم تأكد بريدك الأول. افتح رسالة التأكيد واضغط الرابط، وبعدها سجّل الدخول بنفس كلمة المرور.' : 'Please confirm your email first. Open the confirmation email, click its link, then sign in with the same password.')\n      } else if (/invalid login credentials/i.test(message)) {
+      } else if (/email not confirmed|email_not_confirmed|not confirmed/i.test(message)) {
+        setError(ar ? 'لازم تأكد بريدك الأول. افتح رسالة التأكيد واضغط الرابط، وبعدها سجّل الدخول بنفس كلمة المرور.' : 'Please confirm your email first. Open the confirmation email, click its link, then sign in with the same password.')
+      } else if (/invalid login credentials/i.test(message)) {
         setError(ar ? 'البريد أو كلمة المرور غير صحيحين، أو البريد لم يتم تأكيده بعد. افتح رسالة التأكيد أولًا، ثم سجّل الدخول بنفس كلمة المرور.' : 'Email or password is incorrect, or the email is not confirmed yet. Open the confirmation email first, then sign in with the same password.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
         setError(ar ? 'خدمة Supabase Auth رفضت الطلب مؤقتًا بسبب حدّ المحاولات على الشبكة أو البريد. ده مش معناه إن الإيميل اتسجل؛ وقف المحاولات لحد ما الحد يتجدد، وبعدها جرّب مرة واحدة.' : 'Supabase Auth temporarily rejected requests due to its network or email rate limit. This does not mean the email is registered; stop retrying until the limit resets, then try once.')
