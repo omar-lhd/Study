@@ -96,7 +96,7 @@ export async function signUpWithPassword(email: string, password: string): Promi
   const data = await authRequest('signup', { email: email.trim().toLowerCase(), password })
   // With Confirm email enabled, Supabase creates the user and sends a confirmation
   // code but intentionally does not issue a session until the code is verified.
-  if (!data.access_token && !data.refresh_token && data.user?.id) return null
+  if (!data.access_token || !data.refresh_token || !data.user?.id) return null
   return sessionFromAuthResponse(data)
 }
 
