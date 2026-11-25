@@ -96,7 +96,7 @@ export async function signUpWithPassword(email: string, password: string): Promi
   const { url, key } = config()
   const response = await fetch(`${url}/functions/v1/instant-password-signup`, {
     method: 'POST',
-    headers: { apikey: key, 'Content-Type': ' application/json'.trim() },
+    headers: { apikey: key, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
   })
   const data = await response.json().catch(() => ({})) as { existingAccount?: boolean; error?: string }
