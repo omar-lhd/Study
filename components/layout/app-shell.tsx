@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ACCOUNT_NAV, PRIMARY_NAV } from '@/config/navigation'
 import { getServerTranslator } from '@/lib/preferences/server'
 import { Brand, BrandMark } from './brand'
+import { AdminNavLink } from './admin-nav-link'
 import { SignOutButton } from './sign-out-button'
 import { NavLink } from './nav-link'
 
@@ -28,6 +29,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
           {PRIMARY_NAV.map((item) => (
             <NavLink key={item.href} href={item.href} variant="sidebar" />
           ))}
+          <AdminNavLink />
         </nav>
         <nav aria-label={t('nav.account')} className="flex flex-col gap-1 border-t border-border pt-4">
           {ACCOUNT_NAV.map((item) => (
@@ -45,6 +47,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
               {ACCOUNT_NAV.map((item) => (
                 <NavLink key={item.href} href={item.href} variant="topbar" />
               ))}
+              <AdminNavLink />
               <SignOutButton />
             </nav>
           </div>
