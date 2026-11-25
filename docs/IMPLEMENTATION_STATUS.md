@@ -51,3 +51,6 @@ Correct branch; existing work preserved; dev server starts; build, typecheck, li
 - Reuses `invite_codes` and `redeem_invite(p_code)`; existing membership and redemption behavior retained.
 - Preview deployment is running for branch `feature/admin-invitation-code-dashboard`. See `docs/INVITATION_CODE_ADMIN.md` for architecture, security and validation notes.
 - Still requires successful preview build and authenticated browser end-to-end verification before merge.
+
+- Latest feature-branch CI passed all steps: typecheck, lint, tests, and production build. Vercel preview is READY.
+- Admin access is isolated to `/admin/codes` when the code admin has no group membership; ordinary student routes remain membership-gated.
