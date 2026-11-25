@@ -485,3 +485,24 @@ export function subscribeConversationRealtime(conversationId: string, callbacks:
     },
   }
 }
+
+
+/** Call an authenticated, JWT-verified Supabase Edge Function. */
+export async function invokeAdminFunction<T>(payload: Record<string, unknown>): Promise<T> {
+  const { url, key } = config()
+  const session = await getValidSession()
+  const response = await fetch(`${url}/functions/v1/invite-code-admin`, {
+    method: 'POST',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(typeof data.error === 'string' ? data.error : `Admin request failed (${response.status})`)
+  }
+  return data as T
+}
