@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/headers'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useT } from '@/components/providers/preferences-provider'
+import type { MessageKey } from '@/i18n/messages/ar'
 import { useNow, useSessionFormatters, type SharedSessionSnapshot, listMySharedSessions, listMyStudyCommunities, listVisibleSharedStudySessions } from './use-sessions'
 import { SharedSessionCreateDialog } from './shared-session-create-dialog'
 import { cn } from '@/lib/utils'
@@ -42,7 +43,7 @@ function SessionCard({row,onOpen,now}:{row:Row;onOpen:(id:string)=>void;now:numb
    <div className="min-w-0">
     <div className="mb-2 flex flex-wrap items-center gap-2">
      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">{typeLabel}</span>
-     <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold',statusTone)}>{t('sessions.status.'+(row.status==='canceled'?'completed':row.status))}</span>
+     <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold',statusTone)}>{t(('sessions.status.'+(row.status==='canceled'?'completed':row.status)) as MessageKey)}</span>
     </div>
     <h3 className="truncate text-base font-semibold" dir="auto">{row.title}</h3>
     {row.subject?<p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><i className="size-2 rounded-full" style={{backgroundColor:row.subject_color||'var(--primary)'}}/>{row.subject}</p>:null}
@@ -100,7 +101,7 @@ export function SessionsOverview(){
   </Card>
   {error?<Card className="border-danger/30"><ErrorState icon={<TriangleAlert/>} title={t('sessions.loadError.title')} description={t('sessions.phase2.room.loadError')} action={<Button variant="outline" onClick={()=>setRefresh(v=>v+1)}>{t('common.retry')}</Button>}/></Card>:null}
   <Tabs value={tab} onValueChange={v=>setTab(v as Group)}>
-   <TabsList>{TABS.map(({value})=><TabsTrigger value={value} key={value}>{t('sessions.tab.'+value)}<span className="ms-1.5 rounded-full bg-secondary px-1.5 text-xs tabular-nums">{groups[value].length}</span></TabsTrigger>)}</TabsList>
+   <TabsList>{TABS.map(({value})=><TabsTrigger value={value} key={value}>{t(('sessions.tab.'+value) as MessageKey)}<span className="ms-1.5 rounded-full bg-secondary px-1.5 text-xs tabular-nums">{groups[value].length}</span></TabsTrigger>)}</TabsList>
    {TABS.map(({value,icon})=><TabsContent value={value} key={value}>
     {loading?<Card><LoadingState label={t('sessions.phase2.room.loading')}/></Card>:grouped.length===0?<Card><EmptyState icon={icon} title={value==='active'?t('sessions.empty.active.title'):value==='upcoming'?t('sessions.empty.upcoming.title'):t('sessions.empty.completed.title')} description={value==='active'?t('sessions.empty.active.description'):value==='upcoming'?t('sessions.empty.upcoming.description'):t('sessions.empty.completed.description')} action={value!=='completed'?<SharedSessionCreateDialog trigger={<Button variant="outline"><Plus className="size-4"/>{t('sessions.create')}</Button>}/>:undefined}/></Card>:<ul className="grid gap-3 md:grid-cols-2">{grouped.map(row=><li key={row.id}><SessionCard row={row} now={now} onOpen={id=>router.push('/study/sessions/'+id)}/></li>)}</ul>}
    </TabsContent>)}

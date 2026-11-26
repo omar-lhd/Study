@@ -603,6 +603,11 @@ export const ar = {
 
   'cloud.notifications.storyExpired': 'القصة دي انتهت أو مبقتش متاحة.',
 
+  'sessions.phase2.goals': 'أهداف الجلسة',
+  'sessions.phase2.room.board': 'اللوحة البيضاء',
+  'sessions.phase2.room.boardUnavailable': 'اللوحة البيضاء المشتركة هتكون متاحة في تحديث لاحق.',
+  'sessions.phase2.room.releaseSeat': 'إخلاء مقعد التحدث',
+
 } as const
 
 export type MessageKey = keyof typeof ar

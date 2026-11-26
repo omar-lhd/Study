@@ -607,4 +607,9 @@ export const en: Record<MessageKey, string> = {
 
   'cloud.notifications.storyExpired': 'This Story has expired or is no longer visible.',
 
+  'sessions.phase2.goals': 'Session goals',
+  'sessions.phase2.room.board': 'Whiteboard',
+  'sessions.phase2.room.boardUnavailable': 'The shared whiteboard will be available in a later update.',
+  'sessions.phase2.room.releaseSeat': 'Release speaking seat',
+
 }
