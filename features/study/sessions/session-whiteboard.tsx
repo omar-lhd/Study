@@ -36,12 +36,13 @@ function drawElement(ctx:CanvasRenderingContext2D,element:PreviewElement){
   ctx.lineWidth=width
   if(element.element_type==='stroke'){
     const points=Array.isArray(data.points)?data.points as Point[]:[]
-    if(points.length){
+    const first=points[0]
+    if(first){
       if(data.eraser===true)ctx.globalCompositeOperation='destination-out'
       ctx.beginPath()
-      ctx.moveTo(points[0].x,points[0].y)
-      for(let i=1;i<points.length;i++)ctx.lineTo(points[i].x,points[i].y)
-      if(points.length===1)ctx.lineTo(points[0].x+0.1,points[0].y+0.1)
+      ctx.moveTo(first.x,first.y)
+      for(let i=1;i<points.length;i++){const point=points[i];if(point)ctx.lineTo(point.x,point.y)}
+      if(points.length===1)ctx.lineTo(first.x+0.1,first.y+0.1)
       ctx.stroke()
     }
   }else if(element.element_type==='shape'){
@@ -153,7 +154,8 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     if(!userId){toast.error('Sign in to edit the whiteboard');return}
     try{
       const rows=await addSharedWhiteboardElement(sessionId,pageIndex,userId,elementType,data)
-      if(rows[0])setElements(current=>[...current,rows[0]])
+      const created=rows[0]
+      if(created)setElements(current=>[...current,created])
     }catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_SAVE_FAILED')}
   }
 
