@@ -153,7 +153,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
   async function redeemActivationCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const normalizedCode = activationCode.trim().toUpperCase().replace(/[\\s-]+/g, '')
+    const normalizedCode = activationCode.trim().toUpperCase().replace(/\s+/g, '')
     if (normalizedCode.length < 8 || normalizedCode.length > 80) {
       setError(ar ? 'اكتب كود التفعيل كاملًا (من 8 إلى 80 حرفًا).' : 'Enter the complete activation code (8–80 characters).')
       return
