@@ -28,7 +28,7 @@ function payloadText(notification:InAppNotification,key:string,fallback:string){
 }
 
 export function NotificationsView(){
- const {t}=useT()
+ const t=useT()
  const [notifications,setNotifications]=useState<InAppNotification[]>([])
  const [preferences,setPreferences]=useState<SessionNotificationPreferences|null>(null)
  const [tab,setTab]=useState<'inbox'|'preferences'>('inbox')
