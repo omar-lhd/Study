@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { BookOpen, CheckCircle2, KeyRound, ShieldCheck, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import { usePreferences } from '@/components/providers/preferences-provider'
-import { cloudRest, readCloudSession, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession } from '@/lib/chats/cloud-client'
+import { cloudRest, invokeAdminFunction, readCloudSession, signInWithPassword, signOutCloud, signUpWithPassword, subscribeCloudSession } from '@/lib/chats/cloud-client'
 import { readOfflineSnapshot, writeOfflineSnapshot } from '@/lib/chats/offline-store'
 import { OfflineOutboxSync } from './offline-outbox-sync'
 
@@ -33,7 +34,9 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [retryCount, setRetryCount] = useState(0)
+  const [activationCode, setActivationCode] = useState('')
 
+  const pathname = usePathname()
   const userId = session?.user.id
 
   /* Auth/session and access checks synchronize React with the external Supabase session. */
@@ -68,7 +71,14 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         if (!active) return
         const approved = memberships.length > 0
         if (!approved) {
-          void writeOfflineSnapshot(`auth-access:${userId}`, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
+          // Only an explicit visit to the isolated admin route performs the server-side check.
+          if (pathname.startsWith('/admin/codes')) {
+            try {
+              await invokeAdminFunction({ action: 'check_access' })
+              if (active) { setStage('ready'); return }
+            } catch { /* non-admin stays on the activation gate */ }
+          }
+          void writeOfflineSnapshot('auth-access:' + userId, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
           setStage('activation')
           return
         }
@@ -100,7 +110,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     }
     void loadAccess()
     return () => { active = false }
-  }, [hydrated, userId, ar, retryCount])
+  }, [hydrated, userId, ar, retryCount, pathname])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
@@ -116,7 +126,19 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         }
 
       } else {
-        await signInWithPassword(email, password)
+        try {
+          await signInWithPassword(email, password)
+        } catch (loginCause) {
+          const loginMessage = loginCause instanceof Error ? loginCause.message : ''
+          if (/invalid login credentials|invalid_credentials|user not found/i.test(loginMessage)) {
+            setMode('signup')
+            setStatus(ar
+              ? 'تعذر تسجيل الدخول. لو دي أول مرة تستخدم البريد ده، جهزنا لك إنشاء حساب بنفس البيانات. ولو عندك حساب، ارجع لتسجيل الدخول وتأكد من كلمة المرور.'
+              : 'Could not sign in. If this is your first time with this email, the signup form is ready with your details. If you already have an account, switch back and check your password.')
+            return
+          }
+          throw loginCause
+        }
       }
       setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
     } catch (cause) {
@@ -127,17 +149,70 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         
         setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
       } else if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
-        setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
+        setError(ar ? 'إنشاء الحسابات متوقف مؤقتًا. حاول مرة تانية لاحقًا.' : 'Account creation is temporarily unavailable. Please try again later.')
       } else if (/email not confirmed|email_not_confirmed|not confirmed/i.test(message)) {
-        setError(ar ? 'الحساب ده من التسجيل القديم غير مفعّل. اختار «إنشاء حساب» بنفس البريد واكتب كلمة مرور جديدة لتفعيله فورًا.' : 'This account is from the previous signup flow and is unconfirmed. Choose “Create account” with the same email and a new password to activate it immediately.')
+        setError(ar ? 'البريد الإلكتروني محتاج تأكيد. افتح رسالة التأكيد ثم حاول تسجيل الدخول.' : 'Your email needs confirmation. Open the confirmation email, then try signing in.')
       } else if (/invalid login credentials/i.test(message)) {
         setError(ar ? 'البريد أو كلمة المرور غير صحيحين.' : 'Email or password is incorrect.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
-        setError(ar ? 'محاولات إنشاء الحساب من نفس الشبكة وصلت للحد المؤقت. استنى شوية ثم جرّب مرة واحدة.' : 'Signup attempts from this network reached a temporary limit. Wait a bit, then try once.')
+        setError(ar ? 'محاولات كتير في وقت قصير. استنى شوية وجرب تاني.' : 'Too many attempts in a short time. Please wait and try again.')
       } else {
-        setError(message || (ar ? 'تعذر تسجيل الدخول.' : 'Could not authenticate.'))
+        setError(ar ? 'تعذر إكمال العملية. راجع البيانات واتصل بالإنترنت ثم حاول مجددًا.' : 'Could not complete the request. Check your details and connection, then try again.')
       }
     } finally { setBusy(false) }
+  }
+
+  async function redeemActivationCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const normalizedCode = activationCode.trim().toUpperCase().replace(/\s+/g, '')
+    if (normalizedCode.length < 8 || normalizedCode.length > 80) {
+      setError(ar ? 'اكتب كود التفعيل كاملًا (من 8 إلى 80 حرفًا).' : 'Enter the complete activation code (8–80 characters).')
+      return
+    }
+    if (!session) {
+      setError(ar ? 'سجّل الدخول أولًا لتفعيل عضويتك.' : 'Sign in first to activate your membership.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      // The existing authenticated SECURITY DEFINER RPC performs the SHA-256
+      // lookup, row lock, expiry/revocation checks and single-use membership
+      // insert atomically. Never read plaintext codes from admin-only tables.
+      await cloudRest<string>('rpc/redeem_invite', {
+        method: 'POST',
+        body: JSON.stringify({ p_code: normalizedCode }),
+      })
+      setActivationCode('')
+      setStatus(ar ? 'تم تفعيل الكود بنجاح. بنراجع عضويتك دلوقتي…' : 'Code redeemed successfully. Verifying your membership…')
+      setStage('checking')
+      setRetryCount(value => value + 1)
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ''
+      if (/already a group member/i.test(message)) {
+        setStatus(ar ? 'عضويتك موجودة بالفعل. بنحدّث حالة الدخول…' : 'You are already a member. Refreshing access…')
+        setStage('checking')
+        setRetryCount(value => value + 1)
+      } else if (/already used|redeemed/i.test(message)) {
+        setError(ar ? 'الكود ده اتستخدم قبل كده. استخدم كود تفعيل جديد.' : 'This code has already been used. Use a new activation code.')
+      } else if (/expired/i.test(message)) {
+        setError(ar ? 'صلاحية الكود انتهت. اطلب كودًا جديدًا من مسؤول المجتمع.' : 'This code has expired. Ask a community administrator for a new one.')
+      } else if (/revoked/i.test(message)) {
+        setError(ar ? 'الكود ده اتلغى ومش ممكن تفعّله.' : 'This code has been revoked and cannot be activated.')
+      } else if (/invalid invitation code|invalid.*code/i.test(message)) {
+        setError(ar ? 'الكود غير صحيح. راجع الحروف والأرقام وحاول مرة تانية.' : 'That code is not valid. Check the letters and numbers, then try again.')
+      } else if (/authentication required|invalid jwt|expired.*token|sign in/i.test(message)) {
+        setError(ar ? 'جلسة تسجيل الدخول انتهت. سجّل الدخول مرة تانية.' : 'Your sign-in session expired. Please sign in again.')
+      } else {
+        setError(/network|fetch|timeout|connection/i.test(message)
+          ? (ar ? 'تعذر الاتصال. تحقق من الإنترنت وحاول تاني.' : 'Could not connect. Check your internet connection and try again.')
+          : (ar ? 'تعذر التحقق من الكود. راجع الكود وحاول تاني.' : 'Could not verify this code. Check it and try again.'))
+      }
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -167,7 +242,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       const message = cause instanceof Error ? cause.message : ''
       setError(/unique|duplicate/i.test(message)
         ? (ar ? 'اسم المستخدم ده مستخدم بالفعل. اختار اسم تاني.' : 'That username is already taken. Choose another.')
-        : message || (ar ? 'تعذر حفظ الملف الشخصي.' : 'Could not save your profile.'))
+        : (ar ? 'حصلت مشكلة مؤقتة في حفظ الملف الشخصي. حاول مرة تانية.' : 'A temporary issue prevented saving your profile. Please try again.'))
     } finally { setBusy(false) }
   }
 
@@ -214,10 +289,36 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
         {stage === 'activation' ? <>
           <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary"><ShieldCheck className="size-6"/></div>
-          <h2 className="text-xl font-bold">{ar ? 'حسابك اتجهّز — باقي اعتماد العضوية' : 'Account ready — membership approval pending'}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'تم إنشاء حسابك وحفظ ملفك الشخصي. التطبيق خاص بالأعضاء المعتمدين فقط؛ شاشة وأكواد التفعيل هتتربط لما نظام التفعيل يتنفذ. لحد وقتها لازم مسؤول المجتمع يضيف حسابك كعضو معتمد. مش هنفتح التطبيق أو المحادثات قبل الاعتماد.' : 'Your account is created and profile is saved. Study is private; activation-code redemption will be connected when that system is implemented. Until then, an administrator must add your account as an approved member. The app and chats stay locked until approval.'}</p>
-          {error ? <Button type="button" variant="outline" className="mt-4 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }}>{ar ? 'إعادة التحقق' : 'Retry access check'}</Button> : null}
-          <div className="mt-5 grid gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4"><Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label><Input id="study-activation-code" disabled placeholder={ar ? 'هيتفعّل بعد تنفيذ نظام الأكواد' : 'Enabled when activation codes are implemented'} dir="ltr"/><Button type="button" disabled className="w-full">{ar ? 'تفعيل العضوية — قريبًا' : 'Activate membership — coming later'}</Button><p className="text-xs leading-5 text-muted-foreground">{ar ? 'مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية. حاليًا العضو المعتمد لازم يتضاف من مسؤول المجتمع.' : 'No fake code or membership bypass. For now, an administrator must approve members.'}</p></div>
+          <h2 className="text-xl font-bold">{ar ? 'أهلًا بيك في Study' : 'Welcome to Study'}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'حسابك جاهز. أدخل كود التفعيل اللي اتولد من تطبيق Code Generator عشان تنضم للمجموعة وتفتح المجتمع والمحادثات.' : 'Your account is ready. Enter the activation code generated by Code Generator to join your study group and unlock the community and chats.'}</p>
+          <form onSubmit={redeemActivationCode} className="mt-5 grid gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label>
+              <Input
+                id="study-activation-code"
+                value={activationCode}
+                onChange={event => setActivationCode(event.target.value.toUpperCase())}
+                placeholder={ar ? 'الصق كود التفعيل هنا' : 'Paste your activation code here'}
+                dir="ltr"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={80}
+                disabled={busy}
+                className="h-12 text-center font-mono text-base font-semibold tracking-[0.12em]"
+                aria-describedby="study-activation-help"
+                required
+              />
+              <p id="study-activation-help" className="text-xs leading-5 text-muted-foreground">{ar ? 'الكود صالح للاستخدام مرة واحدة، وبيتم التحقق منه مباشرة وبشكل آمن.' : 'Codes are single-use and validated securely against the activation system.'}</p>
+            </div>
+            <Button type="submit" className="w-full rounded-xl" disabled={busy || activationCode.trim().length < 8}>
+              <KeyRound data-icon="inline-start"/>
+              {busy ? (ar ? 'جاري تفعيل العضوية…' : 'Activating membership…') : (ar ? 'تفعيل والانضمام' : 'Activate and join')}
+            </Button>
+          </form>
+          <Button type="button" variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }} disabled={busy}>
+            {ar ? 'إعادة التحقق من العضوية' : 'Refresh membership status'}
+          </Button>
         </> : null}
 
         {status ? <p role="status" className="mt-4 rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{status}</p> : null}
