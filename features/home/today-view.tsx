@@ -2,7 +2,6 @@ import Link from 'next/link'
 import {
   Activity,
   Bell,
-  BookOpenCheck,
   CalendarCheck,
   ChevronRight,
   HandHelping,
@@ -17,6 +16,7 @@ import { SectionHeader } from '@/components/ui/headers'
 import { APP_TIME_ZONE } from '@/config/app'
 import { LOCALE_META, type MessageKey } from '@/i18n/config'
 import { getServerTranslator } from '@/lib/preferences/server'
+import { ActiveSessionCount } from './active-session-count'
 
 const QUICK_ACTIONS: { href: string; icon: LucideIcon; labelKey: MessageKey }[] = [
   { href: '/study', icon: Timer, labelKey: 'home.quickStart.solo' },
@@ -110,12 +110,10 @@ export async function TodayView() {
             emptyText={t('home.tasks.empty')}
             className="border-t border-border pt-6"
           />
-          <Block
-            title={t('home.sessions.title')}
-            icon={BookOpenCheck}
-            emptyText={t('home.sessions.empty')}
-            className="border-t border-border pt-6"
-          />
+          <section className="space-y-3 border-t border-border pt-6">
+            <SectionHeader title={t('home.sessions.title')} />
+            <ActiveSessionCount />
+          </section>
         </Card>
 
         <div className="space-y-6">
