@@ -138,6 +138,9 @@ export async function heartbeatSharedStudySession(sessionId: string) {
   })
 }
 
+export async function expireSharedSessionVotes(sessionId:string) {
+ return cloudRest<number>('rpc/expire_study_session_votes',{method:'POST',body:JSON.stringify({p_session_id:sessionId})})
+}
 export async function cleanupSharedSessionPresence(sessionId:string) {
  return cloudRest<number>('rpc/cleanup_stale_study_session_presence',{method:'POST',body:JSON.stringify({p_session_id:sessionId})})
 }
@@ -356,7 +359,7 @@ export async function getSharedSessionSeatAssignments(sessionId:string) {
 
 export async function listSharedSessionPauseRequests(sessionId:string) {
   return cloudRest<Array<{id:string;requested_by:string;status:string;yes_count:number;no_count:number;expires_at:string;electorate:string[]}>>(
-    `study_session_pause_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=*&order=created_at.desc`
+    `study_session_pause_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=*&order=created_at.desc`
   )
 }
 
