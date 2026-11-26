@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getAgoraRtcToken, type LiveSessionParticipant } from './use-sessions'
 
 type AgoraTrack = {
