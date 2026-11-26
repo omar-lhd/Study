@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarClock, Check, Clock3, Users, UsersRound, DoorOpen } from 'lucide-react'
+import { CalendarClock, Check, UsersRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input, Label, Select, Textarea } from '@/components/ui/field'
 import { OptionGroup } from '@/components/ui/option-group'
 import { useT } from '@/components/providers/preferences-provider'
-import { cn } from '@/lib/utils'
 import {
   createSharedStudySession,
   listCommunityMemberProfiles,
@@ -61,9 +60,9 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
     let alive=true
     listMyStudyCommunities().then(rows=>{
       if(!alive)return
-      const mine=rows.filter(row=>row.created_by)
-      setCommunities(mine)
-      setCommunityId(current=>current||mine[0]?.id||'')
+      const memberCommunities=rows
+      setCommunities(memberCommunities)
+      setCommunityId(current=>current||memberCommunities[0]?.id||'')
     }).catch(()=>{if(alive)toast.error(t('sessions.phase2.room.loadError'))})
     return ()=>{alive=false}
   },[open,t])
@@ -140,7 +139,7 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
           <Label htmlFor="phase2-community">{t('sessions.phase2.community')}</Label>
           <Select id="phase2-community" value={communityId} onChange={event=>{setCommunityId(event.target.value);setInviteIds([])}}>{communities.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</Select>
           <div className="max-h-44 overflow-y-auto rounded-2xl border border-border p-2">
-            {loadingMembers?<p className="p-2 text-xs text-muted-foreground">{t('sessions.loading')}</p>:members.filter(member=>member.id!==communities.find(row=>row.id===communityId)?.created_by).map(member=><label key={member.id} className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-secondary">
+            {loadingMembers?<p className="p-2 text-xs text-muted-foreground">{t('sessions.loading')}</p>:members.map(member=><label key={member.id} className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-sm hover:bg-secondary">
               <input type="checkbox" checked={inviteIds.includes(member.id)} onChange={event=>setInviteIds(current=>event.target.checked?[...current,member.id]:current.filter(id=>id!==member.id))}/>
               <span className="min-w-0 flex-1 truncate">{member.display_name}{member.username?` · @${member.username}`:''}</span>
             </label>)}
