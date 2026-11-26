@@ -538,12 +538,24 @@ export function subscribeSharedSessionRealtime(sessionId:string,onChange:()=>voi
         if(!active||!socket)return
         reconnectDelay=1000
         const tables=[
-          'study_sessions','study_session_participants','study_session_devices',
-          'study_session_speaker_seats','study_session_seat_requests',
-          'study_session_pause_requests','study_session_time_change_requests',
-          'study_session_whiteboard_pages','study_session_whiteboard_elements',
-          'study_session_events','study_session_chat','study_session_goals',
-          'study_session_notes','study_session_invitations'
+          {table:'study_sessions',filter:'id=eq.'+sessionId},
+          {table:'study_session_participants',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_devices',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_speaker_seats',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_seat_requests',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_pause_requests',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_pause_votes'},
+          {table:'study_session_time_change_requests',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_time_change_votes'},
+          {table:'study_session_whiteboard_pages',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_whiteboard_elements',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_events',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_chat',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_goals',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_notes',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_invitations',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_files',filter:'session_id=eq.'+sessionId},
+          {table:'study_session_intervals',filter:'session_id=eq.'+sessionId}
         ]
         send({
           topic,event:'phx_join',ref:String(ref),join_ref:String(ref),
@@ -551,7 +563,7 @@ export function subscribeSharedSessionRealtime(sessionId:string,onChange:()=>voi
             config:{
               broadcast:{ack:false,self:false},
               presence:{key:session.user.id},
-              postgres_changes:tables.map(table=>({event:'*',schema:'public',table,filter:`session_id=eq.${sessionId}`}))
+              postgres_changes:tables.map(item=>({event:'*',schema:'public',table:item.table,...(item.filter?{filter:item.filter}:{})}))
             },
             access_token:session.access_token
           }
