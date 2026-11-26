@@ -329,3 +329,8 @@
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 }
+
+@media (max-width: 767px) {
+  .study-chat-thread-open .study-chat-notification-panel,
+  .study-chat-thread-open .study-chat-profile-form { display: none !important; }
+}
