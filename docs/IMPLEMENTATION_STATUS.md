@@ -56,7 +56,7 @@ These are audit findings, not proof of an exploit. They were not modified during
 
 ## Verification
 - Vercel Preview build for the early visual milestone completed successfully (production build generated and deployment became READY).
-- Later commits preserving local-notes deep link were pushed after that deployment; their Preview deployment still needs a fresh build verification.
+- The subsequent direct-entry fix for private notes initially exposed a missing Camera icon import. This was corrected in commit generated after this status snapshot; the new Preview build is being rechecked.
 - No local pnpm typecheck, ESLint, test suite or Android build was run in this environment.
 - No visual QA screenshots from a running browser were captured in this pass.
 
