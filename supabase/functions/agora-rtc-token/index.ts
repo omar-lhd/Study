@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
     .eq("id", sessionId)
     .maybeSingle();
   if (sessionError || !session) return reply({ error: "SESSION_NOT_FOUND_OR_FORBIDDEN" }, 404);
-  if (!session.allow_audio || session.status !== "active") return reply({ error: "AUDIO_NOT_AVAILABLE" }, 409);
+  if (!session.allow_audio || !["active", "paused"].includes(session.status)) return reply({ error: "AUDIO_NOT_AVAILABLE" }, 409);
 
   const { data: participant, error: participantError } = await supabase
     .from("study_session_participants")
