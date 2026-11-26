@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
   if (!authorization?.startsWith("Bearer ")) return reply({ error: "AUTH_REQUIRED" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   const appId = Deno.env.get("AGORA_APP_ID");
   const appCertificate = Deno.env.get("AGORA_APP_CERTIFICATE");
 
