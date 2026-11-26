@@ -130,14 +130,14 @@ function MessageBubble({
   )
 }
 
-export function ChatsExperience() {
+export function ChatsExperience({ initialView = 'inbox' }: { initialView?: ActiveView } = {}) {
   const { t, locale } = usePreferences()
   const dateLocale = locale === 'ar' ? 'ar-EG' : 'en-US'
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>([])
   const [ready, setReady] = useState(false)
   const [storageError, setStorageError] = useState(false)
-  const [activeView, setActiveView] = useState<ActiveView>('inbox')
+  const [activeView, setActiveView] = useState<ActiveView>(initialView)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchScope, setSearchScope] = useState<SearchScope>('conversations')
   const [searchQuery, setSearchQuery] = useState('')
