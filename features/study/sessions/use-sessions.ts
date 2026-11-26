@@ -241,7 +241,8 @@ export async function listSharedSpeakerSeats(sessionId:string) {
 }
 
 export async function setMyFocusMode(sessionId:string,focus:boolean) {
- return cloudRest('study_session_participants?session_id=eq.'+encodeURIComponent(sessionId)+'&select=id', {
+ const session=await getValidCloudSession()
+ return cloudRest('study_session_participants?session_id=eq.'+encodeURIComponent(sessionId)+'&user_id=eq.'+encodeURIComponent(session.user.id)+'&select=id', {
    method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({focus_mode:focus,updated_at:new Date().toISOString()})
  })
 }
