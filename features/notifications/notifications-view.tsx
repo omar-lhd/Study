@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Bell, BellRing, CalendarClock, Check, ExternalLink } from 'lucide-react'
+import { Bell, BellRing, CalendarClock, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/headers'
 import { EmptyState } from '@/components/ui/states'
 import { useT } from '@/lib/preferences/client'
+import { cn } from '@/lib/utils'
 import {
   getMySessionNotificationPreferences,listMyInAppNotifications,markMyNotificationRead,
   saveMySessionNotificationPreferences,type InAppNotification,type SessionNotificationPreferences
