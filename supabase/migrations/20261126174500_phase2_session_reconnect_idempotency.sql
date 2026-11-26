@@ -60,15 +60,15 @@ end;
 $$;
 
 create or replace function public.respond_study_session_invitation(p_session_id uuid,p_accept boolean)
-returns text language plpgsql security definer set search_path='' as $$
-declare v_user uuid:=auth.uid();v_status text;v_s public.study_sessions%rowtype;
+returns text language plpgsql security definer set search_path='' as $
+declare v_user uuid:=auth.uid();v_status text;v_group_id uuid;v_creator_id uuid;
 begin
  if v_user is null then raise exception 'AUTH_REQUIRED' using errcode='42501'; end if;
- select i.status,s.* into v_status,v_s from public.study_session_invitations i
- join public.study_sessions s on s.id=i.session_id
+ select i.status,s.group_id,s.created_by into v_status,v_group_id,v_creator_id
+ from public.study_session_invitations i join public.study_sessions s on s.id=i.session_id
  where i.session_id=p_session_id and i.invitee_id=v_user for update of i,s;
  if not found or v_status<>'pending' then raise exception 'INVITATION_NOT_PENDING'; end if;
- if not private.is_study_community_member(v_s.group_id,v_s.created_by) then raise exception 'NOT_COMMUNITY_MEMBER' using errcode='42501'; end if;
+ if not private.is_study_community_member(v_group_id,v_creator_id) then raise exception 'NOT_COMMUNITY_MEMBER' using errcode='42501'; end if;
  update public.study_session_invitations set status=case when p_accept then 'accepted' else 'declined' end,responded_at=now()
  where session_id=p_session_id and invitee_id=v_user;
  update public.study_session_participants set attendance_state=case when p_accept then 'invited' else 'left' end,
@@ -78,7 +78,7 @@ begin
  values(p_session_id,v_user,case when p_accept then 'invitation.accepted' else 'invitation.declined' end,'{}'::jsonb);
  return case when p_accept then 'accepted' else 'declined' end;
 end;
-$$;
+$;
 
 create or replace function public.request_session_pause(p_session_id uuid)
 returns uuid language plpgsql security definer set search_path='' as $$
