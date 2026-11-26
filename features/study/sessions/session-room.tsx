@@ -54,8 +54,7 @@ export function SessionRoom({id}:{id:string}){
  const [noteDraft,setNoteDraft]=useState('');const [mode,setMode]=useState<'focus'|'collaboration'>('collaboration')
  const [expandedListeners,setExpandedListeners]=useState(false)
  const [panel,setPanel]=useState<'goals'|'chat'|'notes'|'board'>('goals')
- const [lastSync,setLastSync]=useState(Date.now());const [refreshKey,setRefreshKey]=useState(0)
- const now=useNow(1000,snapshot?.status==='active')
+ const [lastSync,setLastSync]=useState(Date.now()); const now=useNow(1000,snapshot?.status==='active')
  const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-lastSync)/1000):0)):0,[snapshot,now,lastSync])
  const remaining=snapshot?Math.max(0,snapshot.planned_duration_seconds-elapsed):0
  const current=participants.find(p=>p.user_id===userId)
@@ -102,7 +101,7 @@ export function SessionRoom({id}:{id:string}){
  async function onLeave(){try{await leaveSharedStudySession(id);router.push('/study')}catch(e){toast.error(e instanceof Error?e.message:'SESSION_LEAVE_FAILED')}}
  const unreadRequests=incomingSeatRequests.filter(req=>req.status==='pending')
  if(loading)return <div className="mx-auto max-w-5xl p-4"><Card className="p-8 text-center text-sm text-muted-foreground">{t('sessions.phase2.room.loading')}</Card></div>
- if(error||!snapshot)return <div className="mx-auto max-w-4xl space-y-4 p-4"><Link href="/study" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="size-4 rtl:rotate-180"/>{t('sessions.room.back')}</Link><Card className="border-danger/30 p-5"><p className="font-semibold">{t('sessions.loadError.title')}</p><p className="mt-2 text-sm text-muted-foreground">{error||t('sessions.phase2.room.loadError')}</p><Button className="mt-4" variant="outline" onClick={()=>setRefreshKey(v=>v+1)}>{t('common.retry')}</Button></Card></div>
+ if(error||!snapshot)return <div className="mx-auto max-w-4xl space-y-4 p-4"><Link href="/study" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="size-4 rtl:rotate-180"/>{t('sessions.room.back')}</Link><Card className="border-danger/30 p-5"><p className="font-semibold">{t('sessions.loadError.title')}</p><p className="mt-2 text-sm text-muted-foreground">{error||t('sessions.phase2.room.loadError')}</p><Button className="mt-4" variant="outline" onClick={()=>refresh().then(()=>setError(null)).catch(e=>setError(String(e)))}>{t('common.retry')}</Button></Card></div>
  const completedGoals=goals.filter(g=>g.completed).length
  const goalPercent=goals.length?Math.round(completedGoals/goals.length*100):0
  const isFocus=mode==='focus'
