@@ -200,6 +200,43 @@ export function useSessionFormatters() {
   }, [locale, t])
 }
 
+
+export async function getCloudCurrentUser() {
+  const response = await cloudRest<{id:string}>('rpc/get_my_profile_id',{method:'POST',body:'{}'}).catch(()=>null)
+  return response?.id ?? null
+}
+
+export async function listMySharedSessions() {
+  return cloudRest<Array<{
+    id:string;title:string;subject:string|null;subject_color:string|null;session_type:SharedSessionSnapshot['session_type'];
+    status:SharedSessionSnapshot['status'];access_type:SharedSessionSnapshot['access_type'];starts_at:string|null;
+    started_at:string|null;ended_at:string|null;planned_duration_seconds:number;created_at:string;host_id:string;
+    created_by:string;group_id:string;
+  }>>('study_sessions?select=id,title,subject,subject_color,session_type,status,access_type,starts_at,started_at,ended_at,planned_duration_seconds,created_at,host_id,created_by,group_id&order=starts_at.asc.nullslast,created_at.desc')
+}
+
+export async function getSharedSessionSummary(sessionId:string) {
+  return cloudRest<SharedSessionSnapshot>('rpc/get_study_session_snapshot',{method:'POST',body:JSON.stringify({p_session_id:sessionId})})
+}
+
+export async function listSharedSessionMessages(sessionId:string) {
+  return cloudRest<Array<{id:string;sender_id:string;content:string;client_event_id:string;created_at:string}>>(
+    `study_session_chat?session_id=eq.${encodeURIComponent(sessionId)}&select=*&order=created_at.asc&limit=100`
+  )
+}
+
+export async function listSharedSpeakerSeats(sessionId:string) {
+ return cloudRest<Array<{seat_number:number;participant_id:string;participant:{user_id:string;profiles:{display_name:string;avatar_url:string|null}|null}}>>(
+   `study_session_speaker_seats?session_id=eq.${encodeURIComponent(sessionId)}&select=seat_number,participant_id,participant:study_session_participants(user_id,profiles(display_name,avatar_url))&order=seat_number.asc`
+ )
+}
+
+export async function setMyFocusMode(sessionId:string,focus:boolean) {
+ return cloudRest('study_session_participants?session_id=eq.'+encodeURIComponent(sessionId)+'&select=id', {
+   method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({focus_mode:focus,updated_at:new Date().toISOString()})
+ })
+}
+
 export interface LiveSessionParticipant {
   id: string
   user_id: string
