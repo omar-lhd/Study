@@ -202,8 +202,8 @@ export function useSessionFormatters() {
 
 
 export async function getCloudCurrentUser() {
-  const response = await cloudRest<{id:string}>('rpc/get_my_profile_id',{method:'POST',body:'{}'}).catch(()=>null)
-  return response?.id ?? null
+  const session = await import('@/lib/chats/cloud-client').then(module => module.readCloudSession())
+  return session?.user.id ?? null
 }
 
 export async function listMySharedSessions() {
