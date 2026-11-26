@@ -973,6 +973,7 @@ export function CloudChatsExperience() {
         </DialogContent>
       </Dialog>
             <p className="text-xs text-muted-foreground">{t('cloud.messages.realtimeNote')}</p>
+      </div>
     </div>
   )
 }
