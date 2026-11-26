@@ -35,6 +35,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState('')
   const [retryCount, setRetryCount] = useState(0)
   const [codeAdmin, setCodeAdmin] = useState(false)
+  const [activationCode, setActivationCode] = useState('')
 
   const pathname = usePathname()
   const userId = session?.user.id
@@ -150,6 +151,57 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
     } finally { setBusy(false) }
   }
 
+  async function redeemActivationCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const normalizedCode = activationCode.trim().toUpperCase().replace(/[\\s-]+/g, '')
+    if (normalizedCode.length < 8 || normalizedCode.length > 80) {
+      setError(ar ? 'اكتب كود التفعيل كاملًا (من 8 إلى 80 حرفًا).' : 'Enter the complete activation code (8–80 characters).')
+      return
+    }
+    if (!session) {
+      setError(ar ? 'سجّل الدخول أولًا لتفعيل عضويتك.' : 'Sign in first to activate your membership.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      // The existing authenticated SECURITY DEFINER RPC performs the SHA-256
+      // lookup, row lock, expiry/revocation checks and single-use membership
+      // insert atomically. Never read plaintext codes from admin-only tables.
+      await cloudRest<string>('rpc/redeem_invite', {
+        method: 'POST',
+        body: JSON.stringify({ p_code: normalizedCode }),
+      })
+      setActivationCode('')
+      setStatus(ar ? 'تم تفعيل الكود بنجاح. بنراجع عضويتك دلوقتي…' : 'Code redeemed successfully. Verifying your membership…')
+      setStage('checking')
+      setRetryCount(value => value + 1)
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ''
+      if (/already a group member/i.test(message)) {
+        setStatus(ar ? 'عضويتك موجودة بالفعل. بنحدّث حالة الدخول…' : 'You are already a member. Refreshing access…')
+        setStage('checking')
+        setRetryCount(value => value + 1)
+      } else if (/already used|redeemed/i.test(message)) {
+        setError(ar ? 'الكود ده اتستخدم قبل كده. استخدم كود تفعيل جديد.' : 'This code has already been used. Use a new activation code.')
+      } else if (/expired/i.test(message)) {
+        setError(ar ? 'صلاحية الكود انتهت. اطلب كودًا جديدًا من مسؤول المجتمع.' : 'This code has expired. Ask a community administrator for a new one.')
+      } else if (/revoked/i.test(message)) {
+        setError(ar ? 'الكود ده اتلغى ومش ممكن تفعّله.' : 'This code has been revoked and cannot be activated.')
+      } else if (/invalid invitation code|invalid.*code/i.test(message)) {
+        setError(ar ? 'الكود غير صحيح. راجع الحروف والأرقام وحاول مرة تانية.' : 'That code is not valid. Check the letters and numbers, then try again.')
+      } else if (/authentication required|invalid jwt|expired.*token|sign in/i.test(message)) {
+        setError(ar ? 'جلسة تسجيل الدخول انتهت. سجّل الدخول مرة تانية.' : 'Your sign-in session expired. Please sign in again.')
+      } else {
+        setError(message || (ar ? 'تعذر تفعيل الكود. تحقق من الإنترنت وحاول مجددًا.' : 'Could not redeem the code. Check your connection and try again.'))
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const cleanName = displayName.trim()
@@ -224,11 +276,37 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
 
         {stage === 'activation' ? <>
           <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/12 text-primary"><ShieldCheck className="size-6"/></div>
-          <h2 className="text-xl font-bold">{ar ? 'حسابك اتجهّز — باقي اعتماد العضوية' : 'Account ready — membership approval pending'}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'تم إنشاء حسابك وحفظ ملفك الشخصي. التطبيق خاص بالأعضاء المعتمدين فقط؛ شاشة وأكواد التفعيل هتتربط لما نظام التفعيل يتنفذ. لحد وقتها لازم مسؤول المجتمع يضيف حسابك كعضو معتمد. مش هنفتح التطبيق أو المحادثات قبل الاعتماد.' : 'Your account is created and profile is saved. Study is private; activation-code redemption will be connected when that system is implemented. Until then, an administrator must add your account as an approved member. The app and chats stay locked until approval.'}</p>
-          {error ? <Button type="button" variant="outline" className="mt-4 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }}>{ar ? 'إعادة التحقق' : 'Retry access check'}</Button> : null}
-          <div className="mt-5 grid gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4"><Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label><Input id="study-activation-code" disabled placeholder={ar ? 'هيتفعّل بعد تنفيذ نظام الأكواد' : 'Enabled when activation codes are implemented'} dir="ltr"/><Button type="button" disabled className="w-full">{ar ? 'تفعيل العضوية — قريبًا' : 'Activate membership — coming later'}</Button><p className="text-xs leading-5 text-muted-foreground">{ar ? 'مش هنقبل كود وهمي أو نتجاوز صلاحيات العضوية. حاليًا العضو المعتمد لازم يتضاف من مسؤول المجتمع.' : 'No fake code or membership bypass. For now, an administrator must approve members.'}</p>          {codeAdmin ? <a href="/admin/codes" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><ShieldCheck className="size-4"/>{ar ? 'فتح لوحة إدارة الأكواد' : 'Open code administration'}</a> : null}
-</div>
+          <h2 className="text-xl font-bold">{ar ? 'أهلًا بيك في Study' : 'Welcome to Study'}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{ar ? 'حسابك جاهز. أدخل كود التفعيل اللي اتولد من تطبيق Code Generator عشان تنضم للمجموعة وتفتح المجتمع والمحادثات.' : 'Your account is ready. Enter the activation code generated by Code Generator to join your study group and unlock the community and chats.'}</p>
+          <form onSubmit={redeemActivationCode} className="mt-5 grid gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="study-activation-code">{ar ? 'كود التفعيل' : 'Activation code'}</Label>
+              <Input
+                id="study-activation-code"
+                value={activationCode}
+                onChange={event => setActivationCode(event.target.value.toUpperCase())}
+                placeholder="ENTER-YOUR-CODE"
+                dir="ltr"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={80}
+                disabled={busy}
+                className="h-12 text-center font-mono text-base font-semibold tracking-[0.12em]"
+                aria-describedby="study-activation-help"
+                required
+              />
+              <p id="study-activation-help" className="text-xs leading-5 text-muted-foreground">{ar ? 'الكود صالح للاستخدام مرة واحدة، وبيتم التحقق منه مباشرة وبشكل آمن.' : 'Codes are single-use and validated securely against the activation system.'}</p>
+            </div>
+            <Button type="submit" className="w-full rounded-xl" disabled={busy || activationCode.trim().length < 8}>
+              <KeyRound data-icon="inline-start"/>
+              {busy ? (ar ? 'جاري تفعيل العضوية…' : 'Activating membership…') : (ar ? 'تفعيل والانضمام' : 'Activate and join')}
+            </Button>
+          </form>
+          <Button type="button" variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }} disabled={busy}>
+            {ar ? 'إعادة التحقق من العضوية' : 'Refresh membership status'}
+          </Button>
+          {codeAdmin ? <a href="/admin/codes" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><ShieldCheck className="size-4"/>{ar ? 'فتح لوحة إدارة الأكواد' : 'Open code administration'}</a> : null}
         </> : null}
 
         {status ? <p role="status" className="mt-4 rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{status}</p> : null}
