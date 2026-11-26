@@ -51,6 +51,33 @@ export interface SharedSessionCreateInput {
   goals?: string[]
 }
 
+export async function listMyStudyCommunities() {
+  return cloudRest<Array<{id:string;name:string;created_by:string}>>(
+    'study_groups?select=id,name,created_by&order=created_at.asc'
+  )
+}
+
+export async function listCommunityMemberProfiles(groupId:string) {
+  const memberships=await cloudRest<Array<{user_id:string}>>(
+    `group_members?group_id=eq.${encodeURIComponent(groupId)}&select=user_id&order=joined_at.asc`
+  )
+  const ids=[...new Set(memberships.map(item=>item.user_id))]
+  if (!ids.length) return []
+  return cloudRest<Array<{id:string;display_name:string;avatar_url:string|null;username:string|null}>>(
+    `profiles?id=in.(${ids.map(encodeURIComponent).join(',')})&select=id,display_name,avatar_url,username`
+  )
+}
+
+export async function listVisibleSharedStudySessions(groupId:string) {
+  return cloudRest<Array<{
+    id:string;title:string;subject:string|null;subject_color:string|null;session_type:SharedSessionSnapshot['session_type'];
+    status:SharedSessionSnapshot['status'];access_type:SharedSessionSnapshot['access_type'];starts_at:string|null;
+    started_at:string|null;planned_duration_seconds:number;created_at:string;host_id:string
+  }>>(
+    `study_sessions?group_id=eq.${encodeURIComponent(groupId)}&select=id,title,subject,subject_color,session_type,status,access_type,starts_at,started_at,planned_duration_seconds,created_at,host_id&order=starts_at.asc.nullslast,created_at.desc`
+  )
+}
+
 const DEVICE_KEY = 'psc:study-session-device:v1'
 
 function studySessionDeviceId(): string {
