@@ -82,7 +82,7 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if(title.trim().length<2){toast.error(t('sessions.form.invalid'));return}
-    if(kind!=='open_room'&&!communityId){toast.error(t('sessions.form.invalid'));return}
+    if(!communityId){toast.error('اختَر مجتمعًا تنتمي إليه لإنشاء الجلسة.');return}
     if(kind==='private'&&!invitedUsers.length){toast.error(t('sessions.form.invalid'));return}
     const durationSeconds=Number(duration)*60
     if(!Number.isInteger(durationSeconds)||durationSeconds<300||durationSeconds>28800){toast.error(t('sessions.form.invalid'));return}
@@ -91,6 +91,7 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
     setLoading(true)
     try {
       const input:SharedSessionCreateInput={
+        communityId,
         title:title.trim(),subject:subject.trim()||null,subjectColor:colorForSubject(subject),
         description:description.trim(),sessionType:kind,status:timing==='now'?'active':'scheduled',
         accessType:kind==='open_room'?'group':kind==='group'?access:'invited',
@@ -102,7 +103,7 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
       setOpen(false)
       router.push(`/study/sessions/${id}`)
     } catch(error) {
-      toast.error(error instanceof Error?error.message:t('sessions.phase2.room.loadError'))
+      toast.error(error instanceof Error&&error.message.includes('APPROVED_COMMUNITY_MEMBERSHIP_REQUIRED')?'عضويتك في المجتمع غير معتمدة لإنشاء الجلسات. اختَر مجتمعًا آخر أو اطلب اعتماد عضويتك.':error instanceof Error&&error.message.includes('INVITEE_NOT_IN_COMMUNITY')?'أحد الأعضاء المختارين لا ينتمي إلى المجتمع المحدد.':error instanceof Error?error.message:t('sessions.phase2.room.loadError'))
     } finally {setLoading(false)}
   }
 
@@ -147,9 +148,10 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
           </div>
           {kind==='group'?<div><Label>{t('sessions.phase2.access')}</Label><Select value={access} onChange={event=>setAccess(event.target.value as 'invited'|'group')}><option value="invited">{t('sessions.phase2.inviteOnly')}</option><option value="group">{t('sessions.phase2.communityAccess')}</option></Select></div>:null}
         </div>:null}
+        {kind==='open_room'?<div className="grid gap-2"><Label htmlFor="phase2-community-open">{t('sessions.phase2.community')}</Label><Select id="phase2-community-open" value={communityId} onChange={event=>setCommunityId(event.target.value)}>{communities.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>:null}
         {kind==='open_room'?<p className="rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{t('sessions.phase2.openRoomDescription')}</p>:null}
         <div><Label htmlFor="phase2-session-goals">{t('sessions.phase2.goals')} · {t('sessions.form.field.goals')}</Label><Textarea id="phase2-session-goals" value={goals} onChange={event=>setGoals(event.target.value)} placeholder={t('sessions.phase2.room.goalPlaceholder')}/></div>
-        <Button type="submit" disabled={loading||loadingMembers||(kind!=='open_room'&&!communityId)} className="w-full"><Check className="size-4" aria-hidden="true"/>{loading?t('common.loading'):t('sessions.phase2.create')}</Button>
+        <Button type="submit" disabled={loading||loadingMembers||!communityId} className="w-full"><Check className="size-4" aria-hidden="true"/>{loading?t('common.loading'):t('sessions.phase2.create')}</Button>
       </form>
     </DialogContent>
   </Dialog>
