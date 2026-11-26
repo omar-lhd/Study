@@ -1,6 +1,6 @@
 'use client'
 
-import { cloudRest } from '@/lib/chats/cloud-client'
+import { cloudRest, getValidCloudSession } from '@/lib/chats/cloud-client'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { LOCALE_META } from '@/i18n/config'
 import { usePreferences } from '@/components/providers/preferences-provider'
@@ -360,3 +360,147 @@ export async function listSharedSessionSeatRequests(sessionId:string) {
     `study_session_seat_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=*&order=created_at.asc`
   )
 }
+
+export interface SessionEvent {
+  id:string
+  actor_id:string|null
+  event_type:string
+  payload:Record<string,unknown>
+  occurred_at:string
+}
+export interface SessionPauseRequest {
+  id:string
+  requested_by:string
+  status:string
+  yes_count:number
+  no_count:number
+  expires_at:string
+  electorate:string[]
+}
+export interface SessionTimeChangeRequest {
+  id:string
+  session_id:string
+  requested_by:string
+  delta_seconds:number
+  proposed_duration_seconds:number
+  electorate:string[]
+  yes_count:number
+  no_count:number
+  status:string
+  expires_at:string
+  created_at:string
+}
+export interface WhiteboardPage {
+  id:string
+  session_id:string
+  page_index:number
+  settings:Record<string,unknown>
+  updated_by:string|null
+  updated_at:string
+}
+export interface WhiteboardElement {
+  id:string
+  session_id:string
+  page_index:number
+  created_by:string
+  element_type:'stroke'|'text'|'shape'|'image'
+  data:Record<string,unknown>
+  created_at:string
+  updated_at:string
+  deleted_at:string|null
+}
+
+export async function listSharedSessionEvents(sessionId:string) {
+  return cloudRest<SessionEvent[]>(
+    `study_session_events?session_id=eq.${encodeURIComponent(sessionId)}&select=id,actor_id,event_type,payload,occurred_at&order=occurred_at.desc&limit=100`
+  )
+}
+
+export async function listSharedSessionPauseRequests(sessionId:string) {
+  return cloudRest<SessionPauseRequest[]>(
+    `study_session_pause_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=id,requested_by,status,yes_count,no_count,expires_at,electorate&order=created_at.desc`
+  )
+}
+
+export async function listSharedSessionTimeChangeRequests(sessionId:string) {
+  return cloudRest<SessionTimeChangeRequest[]>(
+    `study_session_time_change_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=*&order=created_at.desc`
+  )
+}
+
+export async function proposeSharedSessionTimeChange(sessionId:string,deltaSeconds:number) {
+  return cloudRest<string>('rpc/propose_session_time_change',{
+    method:'POST',body:JSON.stringify({p_session_id:sessionId,p_delta_seconds:deltaSeconds})
+  })
+}
+
+export async function voteSharedSessionTimeChange(requestId:string,vote:'yes'|'no') {
+  return cloudRest<string>('rpc/vote_session_time_change',{
+    method:'POST',body:JSON.stringify({p_request_id:requestId,p_vote:vote})
+  })
+}
+
+export async function getSharedWhiteboardPage(sessionId:string,pageIndex:number) {
+  const rows=await cloudRest<WhiteboardPage[]>(
+    `study_session_whiteboard_pages?session_id=eq.${encodeURIComponent(sessionId)}&page_index=eq.${pageIndex}&select=id,session_id,page_index,settings,updated_by,updated_at&limit=1`
+  )
+  return rows[0]??null
+}
+
+export async function saveSharedWhiteboardPage(sessionId:string,pageIndex:number,settings:Record<string,unknown>,userId:string) {
+  return cloudRest<WhiteboardPage[]>(
+    `study_session_whiteboard_pages?on_conflict=session_id,page_index`,
+    {method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify({session_id:sessionId,page_index:pageIndex,settings,updated_by:userId,updated_at:new Date().toISOString()})}
+  )
+}
+
+export async function listSharedWhiteboardElements(sessionId:string,pageIndex:number) {
+  return cloudRest<WhiteboardElement[]>(
+    `study_session_whiteboard_elements?session_id=eq.${encodeURIComponent(sessionId)}&page_index=eq.${pageIndex}&deleted_at=is.null&select=*&order=created_at.asc&limit=1500`
+  )
+}
+
+export async function addSharedWhiteboardElement(sessionId:string,pageIndex:number,userId:string,elementType:WhiteboardElement['element_type'],data:Record<string,unknown>) {
+  return cloudRest<WhiteboardElement[]>(
+    'study_session_whiteboard_elements',
+    {method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({session_id:sessionId,page_index:pageIndex,created_by:userId,element_type:elementType,data})}
+  )
+}
+
+export async function updateSharedWhiteboardElement(elementId:string,data:Record<string,unknown>) {
+  return cloudRest<WhiteboardElement[]>(
+    `study_session_whiteboard_elements?id=eq.${encodeURIComponent(elementId)}`,
+    {method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({data,updated_at:new Date().toISOString()})}
+  )
+}
+
+export async function deleteSharedWhiteboardElement(elementId:string) {
+  return cloudRest<undefined>(`study_session_whiteboard_elements?id=eq.${encodeURIComponent(elementId)}`,{method:'DELETE'})
+}
+
+export interface AgoraRtcTokenResponse {
+  appId:string
+  channelName:string
+  uid:number
+  token:string
+  expiresIn:number
+  role:'listen'|'publish_audio'
+  audioOnly:true
+  seatNumber:number|null
+}
+
+export async function getAgoraRtcToken(sessionId:string,intent:'listen'|'publish_audio') {
+  const session=await getValidCloudSession()
+  const url=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,'')
+  const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if(!url||!key)throw new Error('SUPABASE_ENV_NOT_CONFIGURED')
+  const response=await fetch(`${url}/functions/v1/agora-rtc-token`,{
+    method:'POST',
+    headers:{apikey:key,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({sessionId,intent})
+  })
+  const data=await response.json().catch(()=>({})) as AgoraRtcTokenResponse&{error?:string}
+  if(!response.ok)throw new Error(data.error||'AGORA_TOKEN_REQUEST_FAILED')
+  return data
+}
+
