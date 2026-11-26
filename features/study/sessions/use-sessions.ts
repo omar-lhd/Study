@@ -38,6 +38,7 @@ export interface SharedSessionSnapshot {
 }
 
 export interface SharedSessionCreateInput {
+  communityId: string
   title: string
   subject?: string | null
   subjectColor?: string | null
@@ -101,6 +102,7 @@ export async function createSharedStudySession(input: SharedSessionCreateInput):
   const result = await cloudRest<string>('rpc/create_study_session', {
     method: 'POST',
     body: JSON.stringify({
+      p_group_id: input.communityId,
       p_title: input.title.trim(),
       p_subject: input.subject?.trim() || null,
       p_subject_color: input.subjectColor ?? null,
