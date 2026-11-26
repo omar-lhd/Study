@@ -253,6 +253,7 @@ export interface LiveSessionParticipant {
   participant_role: 'host' | 'moderator' | 'member'
   attendance_state: 'invited' | 'present' | 'left' | 'suspended'
   focus_mode: boolean
+  whiteboard_open: boolean
   display_name: string
   avatar_url: string | null
 }
@@ -273,9 +274,9 @@ export async function listSharedStudySessions(groupId: string) {
 export async function listSharedSessionParticipants(sessionId: string) {
   const rows = await cloudRest<Array<{
     id:string;user_id:string;participant_role:LiveSessionParticipant['participant_role'];
-    attendance_state:LiveSessionParticipant['attendance_state'];focus_mode:boolean;
+    attendance_state:LiveSessionParticipant['attendance_state'];focus_mode:boolean;whiteboard_open:boolean;
   }>>(
-    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode&order=created_at.asc`
+    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode,whiteboard_open&order=created_at.asc`
   )
   const ids = [...new Set(rows.map(row=>row.user_id))]
   const profiles = ids.length ? await cloudRest<Array<{id:string;display_name:string;avatar_url:string|null}>>(
@@ -284,7 +285,7 @@ export async function listSharedSessionParticipants(sessionId: string) {
   const byId = new Map(profiles.map(profile=>[profile.id,profile]))
   return rows.map(row=>({
     id:row.id,user_id:row.user_id,participant_role:row.participant_role,
-    attendance_state:row.attendance_state,focus_mode:row.focus_mode,
+    attendance_state:row.attendance_state,focus_mode:row.focus_mode,whiteboard_open:row.whiteboard_open,
     display_name:byId.get(row.user_id)?.display_name ?? 'Study member',
     avatar_url:byId.get(row.user_id)?.avatar_url ?? null
   }))
@@ -587,4 +588,12 @@ export function subscribeSharedSessionRealtime(sessionId:string,onChange:()=>voi
     socket?.close()
     socket=null
   }
+}
+
+export async function setMyWhiteboardPresence(sessionId:string,open:boolean) {
+  const session=await getValidCloudSession()
+  return cloudRest('study_session_participants?session_id=eq.'+encodeURIComponent(sessionId)+'&user_id=eq.'+encodeURIComponent(session.user.id),{
+    method:'PATCH',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({whiteboard_open:open,updated_at:new Date().toISOString()})
+  })
 }
