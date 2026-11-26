@@ -39,14 +39,14 @@ export function NavLink({ href, variant }: { href: string; variant: Variant }) {
         href={item.href}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[0.7rem] font-medium transition-colors',
-          active ? 'text-primary' : 'text-muted-foreground',
+          'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[0.7rem] font-medium transition-all duration-300',
+          active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
         )}
       >
         <span
           className={cn(
-            'flex h-7 w-12 items-center justify-center rounded-full transition-colors',
-            active && 'bg-primary/15',
+            'flex h-8 w-12 items-center justify-center rounded-2xl border border-transparent transition-all duration-300',
+            active && 'ambient-orb border-primary/20 text-primary-foreground shadow-[0_8px_26px_-18px_var(--primary)]',
           )}
         >
           <Icon className="size-5" aria-hidden="true" />
@@ -62,14 +62,14 @@ export function NavLink({ href, variant }: { href: string; variant: Variant }) {
       title={label}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex min-h-11 items-center justify-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors lg:justify-start',
+        'relative flex min-h-11 items-center justify-center gap-3 rounded-xl px-3 text-sm font-medium transition-all duration-300 lg:justify-start',
         active
-          ? 'bg-primary/12 text-primary'
-          : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+          ? 'glass-standard text-primary shadow-[inset_0_1px_0_oklch(1_0_0_/_0.08)]'
+          : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
       )}
     >
       {active ? (
-        <span aria-hidden="true" className="absolute inset-y-2 start-0 w-1 rounded-full bg-primary" />
+        <span aria-hidden="true" className="absolute inset-y-2 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-accent shadow-[0_0_14px_var(--primary)]" />
       ) : null}
       <Icon className="size-5 shrink-0" aria-hidden="true" />
       <span className="sr-only lg:not-sr-only">{label}</span>
