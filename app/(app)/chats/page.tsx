@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { ChatsShell } from '@/features/chats/chats-shell'
+import { StudyChatHub } from '@/features/chats/study-chat-hub'
 import { getServerTranslator } from '@/lib/preferences/server'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -8,5 +8,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function ChatsPage() {
-  return <ChatsShell />
+  return <StudyChatHub />
 }
