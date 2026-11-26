@@ -206,7 +206,9 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       } else if (/authentication required|invalid jwt|expired.*token|sign in/i.test(message)) {
         setError(ar ? 'جلسة تسجيل الدخول انتهت. سجّل الدخول مرة تانية.' : 'Your sign-in session expired. Please sign in again.')
       } else {
-        setError(message || (ar ? 'تعذر تفعيل الكود. تحقق من الإنترنت وحاول مجددًا.' : 'Could not redeem the code. Check your connection and try again.'))
+        setError(/network|fetch|timeout|connection/i.test(message)
+          ? (ar ? 'تعذر الاتصال. تحقق من الإنترنت وحاول تاني.' : 'Could not connect. Check your internet connection and try again.')
+          : (ar ? 'تعذر التحقق من الكود. راجع الكود وحاول تاني.' : 'Could not verify this code. Check it and try again.'))
       }
     } finally {
       setBusy(false)
