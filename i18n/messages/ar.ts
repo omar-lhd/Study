@@ -300,6 +300,17 @@ export const ar = {
   'sessions.phase2.room.loading': 'جارٍ تحميل الغرفة…',
   'sessions.phase2.room.loadError': 'تعذر تحميل الغرفة. تحقق من اتصالك وصلاحياتك.',
 
+  'sessions.phase2.createTitle': 'إنشاء جلسة دراسة مشتركة',
+  'sessions.phase2.sessionType': 'نوع الجلسة',
+  'sessions.phase2.startTime': 'موعد البداية',
+  'sessions.phase2.community': 'المجتمع',
+  'sessions.phase2.noMembers': 'لا يوجد أعضاء متاحون في هذا المجتمع.',
+  'sessions.phase2.access': 'صلاحية الدخول',
+  'sessions.phase2.inviteOnly': 'للمدعوين فقط',
+  'sessions.phase2.communityAccess': 'كل أعضاء المجتمع',
+  'sessions.phase2.openRoomDescription': 'غرفة مفتوحة يمكن لأعضاء مجتمعك الانضمام إليها أثناء فتحها.',
+  'sessions.phase2.create': 'إنشاء الجلسة',
+
   'planner.title': 'المخطط الدراسي',
   'planner.description': 'المواد والدروس والمهام والامتحانات في مكان واحد.',
   'planner.subjects': 'المواد',
