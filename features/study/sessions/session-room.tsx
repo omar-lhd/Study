@@ -104,7 +104,9 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
  const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null)},[])
  function eventLabel(event:SessionEvent){
-  const actor=participants.find(person=>person.user_id===event.actor_id)?.display_name??'عضو'
+  const targetId=typeof event.payload.participant_id==='string'?event.payload.participant_id:typeof event.payload.user_id==='string'?event.payload.user_id:null
+  const target=targetId?participants.find(person=>person.id===targetId||person.user_id===targetId):undefined
+  const actor=target?.display_name??participants.find(person=>person.user_id===event.actor_id)?.display_name??'عضو'
   switch(event.event_type){
    case 'participant.joined':return actor+' انضم للجلسة'
    case 'participant.left':return actor+' غادر الجلسة'
@@ -118,7 +120,9 @@ export function SessionRoom({id}:{id:string}){
    case 'session.time_change_vote':return actor+' صوّت على تعديل الوقت'
    case 'session.time_changed':return 'تم تعديل وقت الجلسة'
    case 'session.time_change_rejected':return 'تم رفض تعديل الوقت'
-   case 'session.focus_changed':return actor+' فعّل وضع التركيز'
+   case 'session.focus_changed':return actor+(event.payload.focus_mode===true?' فعّل وضع التركيز':' أوقف وضع التركيز')
+   case 'participant.whiteboard_opened':return actor+' داخل السبورة'
+   case 'participant.whiteboard_closed':return actor+' خرج من السبورة'
    default:return actor+' قام بتحديث الجلسة'
   }
  }
