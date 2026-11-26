@@ -112,13 +112,13 @@ export function SessionRoom({id}:{id:string}){
   const targetName=target?.display_name??'عضو'
   switch(event.event_type){
    case 'participant.joined':return actor+' انضم للجلسة'
-   case 'participant.left':return actor+' غادر الجلسة'
-   case 'speaker.seat_granted':return actor+' صعد لمقعد الصوت'
+   case 'participant.left':return targetName+' غادر الجلسة'
+   case 'speaker.seat_granted':return targetName+' صعد لمقعد الصوت'
    case 'speaker.seat_requested':return actor+' طلب التحدث من '+targetName
    case 'speaker.seat_request_accepted':return targetName+' وافق على طلب الصوت'
    case 'speaker.seat_request_rejected':return targetName+' رفض طلب الصوت'
    case 'speaker.seat_request_expired':return 'انتهت صلاحية طلب الصوت'
-   case 'speaker.seat_released':return actor+' ترك مقعد الصوت'
+   case 'speaker.seat_released':return targetName+' ترك مقعد الصوت'
    case 'session.pause_requested':return actor+' طلب إيقاف المؤقت'
    case 'session.pause_vote':return actor+' صوّت على إيقاف المؤقت'
    case 'session.pause':return 'تم إيقاف المؤقت'
@@ -128,8 +128,8 @@ export function SessionRoom({id}:{id:string}){
    case 'session.time_changed':return 'تم تعديل وقت الجلسة'
    case 'session.time_change_rejected':return 'تم رفض تعديل الوقت'
    case 'session.focus_changed':return actor+(event.payload.focus_mode===true?' فعّل وضع التركيز':' أوقف وضع التركيز')
-   case 'participant.whiteboard_opened':return actor+' داخل السبورة'
-   case 'participant.whiteboard_closed':return actor+' خرج من السبورة'
+   case 'participant.whiteboard_opened':return targetName+' داخل السبورة'
+   case 'participant.whiteboard_closed':return targetName+' خرج من السبورة'
    default:return actor+' قام بتحديث الجلسة'
   }
  }
