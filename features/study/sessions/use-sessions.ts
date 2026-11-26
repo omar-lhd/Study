@@ -138,6 +138,9 @@ export async function heartbeatSharedStudySession(sessionId: string) {
   })
 }
 
+export async function cleanupSharedSessionPresence(sessionId:string) {
+ return cloudRest<number>('rpc/cleanup_stale_study_session_presence',{method:'POST',body:JSON.stringify({p_session_id:sessionId})})
+}
 export async function getSharedStudySessionSnapshot(sessionId: string) {
   return cloudRest<SharedSessionSnapshot>('rpc/get_study_session_snapshot',{
     method:'POST',body:JSON.stringify({p_session_id:sessionId})
