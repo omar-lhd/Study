@@ -1,6 +1,5 @@
 'use client'
 
-import { useCallback } from 'react'
 import { cloudRest } from '@/lib/chats/cloud-client'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { LOCALE_META } from '@/i18n/config'
@@ -201,15 +200,19 @@ export async function listSharedSessionParticipants(sessionId: string) {
   const rows = await cloudRest<Array<{
     id:string;user_id:string;participant_role:LiveSessionParticipant['participant_role'];
     attendance_state:LiveSessionParticipant['attendance_state'];focus_mode:boolean;
-    profiles:{display_name:string;avatar_url:string|null}|null
   }>>(
-    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode,profiles(display_name,avatar_url)&order=created_at.asc`
+    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode&order=created_at.asc`
   )
+  const ids = [...new Set(rows.map(row=>row.user_id))]
+  const profiles = ids.length ? await cloudRest<Array<{id:string;display_name:string;avatar_url:string|null}>>(
+    `profiles?id=in.(${ids.map(encodeURIComponent).join(',')})&select=id,display_name,avatar_url`
+  ) : []
+  const byId = new Map(profiles.map(profile=>[profile.id,profile]))
   return rows.map(row=>({
     id:row.id,user_id:row.user_id,participant_role:row.participant_role,
     attendance_state:row.attendance_state,focus_mode:row.focus_mode,
-    display_name:row.profiles?.display_name ?? 'Study member',
-    avatar_url:row.profiles?.avatar_url ?? null
+    display_name:byId.get(row.user_id)?.display_name ?? 'Study member',
+    avatar_url:byId.get(row.user_id)?.avatar_url ?? null
   }))
 }
 
