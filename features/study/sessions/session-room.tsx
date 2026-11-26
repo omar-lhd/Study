@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Check, ChevronDown, ChevronUp, Clock3, Headphones, Lock, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Users, Volume2, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronDown, ChevronUp, Clock3, Headphones, Lock, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -16,9 +16,10 @@ import {
  setSharedStudySessionState,requestSharedPause,voteSharedPause,requestSharedSpeakerSeat,respondSharedSpeakerSeat,
  respondSharedSessionInvitation,listMyPendingSharedSessionInvitations,listSharedSessionParticipants,
  listSharedSessionGoals,addSharedSessionGoal,updateSharedSessionGoal,listSharedSessionChat,sendSharedSessionChat,
- listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,getCloudCurrentUser,useNow,useSessionFormatters,
- type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal
+ listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,getCloudCurrentUser,useNow,useSessionFormatters,
+ type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal,type SessionEvent,type SessionPauseRequest,type SessionTimeChangeRequest
 } from './use-sessions'
+import { AgoraAudio } from './agora-audio'
 
 type ChatMessage={id:string;sender_id:string;content:string;client_event_id:string;created_at:string}
 type SeatRequest={id:string;requester_id:string;target_participant_id:string;status:string;expires_at:string;created_at:string}
@@ -43,6 +44,19 @@ export function SessionRoom({id}:{id:string}){
  const [chatDraft,setChatDraft]=useState('');const [goalDraft,setGoalDraft]=useState('')
  const [noteDraft,setNoteDraft]=useState('');const [mode,setMode]=useState<'focus'|'collaboration'>('collaboration')
  const [showRoster,setShowRoster]=useState(false)
+ const [pauseRequests,setPauseRequests]=useState<SessionPauseRequest[]>([])
+ const [timeRequests,setTimeRequests]=useState<SessionTimeChangeRequest[]>([])
+ const [events,setEvents]=useState<SessionEvent[]>([])
+ const [showPauseConfirm,setShowPauseConfirm]=useState(false)
+ const [showPauseVote,setShowPauseVote]=useState(false)
+ const [showTimerAdjust,setShowTimerAdjust]=useState(false)
+ const [micEnabled,setMicEnabled]=useState(false)
+ const [muteAll,setMuteAll]=useState(false)
+ const [mutedUserIds,setMutedUserIds]=useState<string[]>([])
+ const [volumes,setVolumes]=useState<Record<string,number>>({})
+ const [rtcStatus,setRtcStatus]=useState<'connecting'|'connected'|'disconnected'|'error'>('connecting')
+ const [rtcError,setRtcError]=useState<string|null>(null)
+ const [timeDelta,setTimeDelta]=useState(600)
  const [panel,setPanel]=useState<'goals'|'chat'|'notes'|'board'>('goals')
  const [lastSync,setLastSync]=useState(Date.now()); const now=useNow(1000,snapshot?.status==='active')
  const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-lastSync)/1000):0)):0,[snapshot,now,lastSync])
@@ -57,12 +71,12 @@ export function SessionRoom({id}:{id:string}){
  const presentParticipants=participants.filter(p=>p.attendance_state==='present')
 
  const refresh=useCallback(async()=>{
-  const [s,p,g,c,r,ss,inv,u]=await Promise.all([
+  const [s,p,g,c,r,ss,inv,u,pauses,times,ev]=await Promise.all([
    getSharedStudySessionSnapshot(id),listSharedSessionParticipants(id),listSharedSessionGoals(id),
    listSharedSessionChat(id),listSharedSessionSeatRequests(id),getSharedSessionSeatAssignments(id),
-   listMyPendingSharedSessionInvitations(),getCloudCurrentUser()
+   listMyPendingSharedSessionInvitations(),getCloudCurrentUser(),listSharedSessionPauseRequests(id),listSharedSessionTimeChangeRequests(id),listSharedSessionEvents(id)
   ])
-  setSnapshot(s);setParticipants(p);setGoals(g);setMessages(c);setSeatRequests(r);setSeats(ss);setInvitations(inv);setUserId(u)
+  setSnapshot(s);setParticipants(p);setGoals(g);setMessages(c);setSeatRequests(r);setSeats(ss);setInvitations(inv);setUserId(u);setPauseRequests(pauses);setTimeRequests(times);setEvents(ev)
   setLastSync(Date.now());setConnected(true);setError(null)
  },[id])
  useEffect(()=>{
@@ -80,6 +94,30 @@ export function SessionRoom({id}:{id:string}){
   return()=>{clearInterval(heartbeat);clearInterval(sync);window.removeEventListener('online',online);window.removeEventListener('offline',offline)}
  },[id,current?.attendance_state,refresh])
  useEffect(()=>{return()=>{void leaveSharedStudySession(id).catch(()=>{})}},[id])
+ const realtimeRefresh=useCallback(()=>{void refresh().catch(()=>setConnected(false))},[refresh])
+ useEffect(()=>{if(current?.attendance_state!=='present')return;return subscribeSharedSessionRealtime(id,realtimeRefresh)},[id,current?.attendance_state,realtimeRefresh])
+ useEffect(()=>{if(pauseRequests.length>0)setShowPauseVote(true)},[pauseRequests.length])
+ useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
+ const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null)},[])
+ function eventLabel(event:SessionEvent){
+  const actor=participants.find(person=>person.user_id===event.actor_id)?.display_name??'عضو'
+  switch(event.event_type){
+   case 'participant.joined':return actor+' انضم للجلسة'
+   case 'participant.left':return actor+' غادر الجلسة'
+   case 'speaker.seat_granted':return actor+' صعد لمقعد الصوت'
+   case 'speaker.seat_released':return actor+' ترك مقعد الصوت'
+   case 'session.pause_requested':return actor+' طلب إيقاف المؤقت'
+   case 'session.pause_vote':return actor+' صوّت على إيقاف المؤقت'
+   case 'session.pause':return 'تم إيقاف المؤقت'
+   case 'session.pause_rejected':return 'تم رفض طلب إيقاف المؤقت'
+   case 'session.time_change_requested':return actor+' طلب تعديل وقت الجلسة'
+   case 'session.time_change_vote':return actor+' صوّت على تعديل الوقت'
+   case 'session.time_changed':return 'تم تعديل وقت الجلسة'
+   case 'session.time_change_rejected':return 'تم رفض تعديل الوقت'
+   case 'session.focus_changed':return actor+' فعّل وضع التركيز'
+   default:return actor+' قام بتحديث الجلسة'
+  }
+ }
 
  async function changeState(action:'start'|'pause'|'resume'|'complete'|'cancel'){try{await setSharedStudySessionState(id,action);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SESSION_ACTION_FAILED')}}
  async function sendChat(){const value=chatDraft.trim();if(!value||!userId)return;try{await sendSharedSessionChat(id,userId,value,crypto.randomUUID());setChatDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'CHAT_SEND_FAILED')}}
@@ -89,7 +127,12 @@ export function SessionRoom({id}:{id:string}){
  async function claimSeat(){if(!userId)return;try{await addSharedSpeakerSeat(id,userId);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SPEAKER_SEAT_CLAIM_FAILED')}}
  async function respondSeat(req:SeatRequest,accept:boolean){try{await respondSharedSpeakerSeat(req.id,accept);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SEAT_TRANSFER_FAILED')}}
  async function respondInvitation(inv:Invitation,join:boolean){try{await respondSharedSessionInvitation(inv.session_id,join);setInvitations(list=>list.filter(item=>item.invitation_id!==inv.invitation_id));if(join)router.push('/study/sessions/'+inv.session_id)}catch(e){toast.error(e instanceof Error?e.message:'INVITATION_FAILED')}}
- async function askPause(){try{await requestSharedPause(id);toast.success(t('sessions.phase2.room.pauseRequest'));await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PAUSE_REQUEST_FAILED')}}
+ async function askPause(){setShowPauseConfirm(true)}
+ async function confirmPauseVote(){setShowPauseConfirm(false);try{await requestSharedPause(id);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PAUSE_REQUEST_FAILED')}}
+ async function votePause(request:SessionPauseRequest,vote:'yes'|'no'){try{await voteSharedPause(request.id,vote);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PAUSE_VOTE_FAILED')}}
+ async function proposeTimeChange(delta:number){setShowTimerAdjust(false);try{await proposeSharedSessionTimeChange(id,delta);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'TIME_CHANGE_REQUEST_FAILED')}}
+ async function voteTimeChange(request:SessionTimeChangeRequest,vote:'yes'|'no'){try{await voteSharedSessionTimeChange(request.id,vote);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'TIME_CHANGE_VOTE_FAILED')}}
+ async function toggleFocusMode(){const next=mode==='focus'?'collaboration':'focus';setMode(next);setMuteAll(next==='focus');try{await setMyFocusMode(id,next==='focus');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'FOCUS_MODE_FAILED')}}
  async function onLeave(){try{await leaveSharedStudySession(id);router.push('/study')}catch(e){toast.error(e instanceof Error?e.message:'SESSION_LEAVE_FAILED')}}
  const unreadRequests=incomingSeatRequests.filter(req=>req.status==='pending')
  if(loading)return <div className="mx-auto max-w-5xl p-4"><Card className="p-8 text-center text-sm text-muted-foreground">{t('sessions.phase2.room.loading')}</Card></div>
