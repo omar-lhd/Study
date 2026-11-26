@@ -3,23 +3,13 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
   Bell,
   Bookmark,
-  Camera,
-  CheckCheck,
   ChevronRight,
   CircleHelp,
-  Clock3,
-  FileText,
-  Flame,
-  ImagePlus,
   MessageCircle,
-  MoreHorizontal,
   Plus,
   Search,
-  Send,
   Sparkles,
   UsersRound,
   X,
