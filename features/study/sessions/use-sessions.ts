@@ -416,11 +416,7 @@ export async function listSharedSessionEvents(sessionId:string) {
   )
 }
 
-export async function listSharedSessionPauseRequests(sessionId:string) {
-  return cloudRest<SessionPauseRequest[]>(
-    `study_session_pause_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=id,requested_by,status,yes_count,no_count,expires_at,electorate&order=created_at.desc`
-  )
-}
+
 
 export async function listSharedSessionTimeChangeRequests(sessionId:string) {
   return cloudRest<SessionTimeChangeRequest[]>(
