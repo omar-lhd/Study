@@ -140,19 +140,21 @@ export function SessionRoom({id}:{id:string}){
  const completedGoals=goals.filter(g=>g.completed).length
  const goalPercent=goals.length?Math.round(completedGoals/goals.length*100):0
  const isFocus=mode==='focus'
- return <main className="mx-auto flex h-[calc(100dvh-10rem)] min-h-0 w-full max-w-6xl flex-col gap-2 overflow-hidden pb-2 sm:gap-3">
+ return <>
+  <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onStatus={handleRtcStatus}/>
+  <main className="mx-auto flex h-[calc(100dvh-10rem)] min-h-0 w-full max-w-6xl flex-col gap-2 overflow-hidden pb-2 sm:gap-3">
   <div className="flex items-center justify-between gap-3">
    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
    <div className="flex min-w-0 flex-1 items-center gap-3">
     <div className="grid size-12 shrink-0 place-items-center rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-600/30 to-blue-500/15 text-violet-300 shadow-[0_0_26px_rgba(109,66,255,.25)]"><Users className="size-6"/></div>
-    <div className="min-w-0"><h1 className="truncate text-base font-semibold">{snapshot.title}</h1><p className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn('size-2 rounded-full',connected?'bg-emerald-400':'bg-rose-500')}/>{snapshot.status==='active'?'Live':snapshot.status==='paused'?'Paused':snapshot.status} · {snapshot.participant_count} {t('sessions.phase2.room.present')}</p></div>
+    <div className="min-w-0"><h1 className="truncate text-base font-semibold">{snapshot.title}</h1><button type="button" onClick={()=>setShowRoster(true)} className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn('size-2 rounded-full',connected?'bg-emerald-400':'bg-rose-500')}/>{snapshot.status==='active'?'Live':snapshot.status==='paused'?'Paused':snapshot.status} · {snapshot.participant_count} {t('sessions.phase2.room.present')}</button></div>
    </div>
    <button className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-300" aria-label="More"><MoreHorizontal/></button>
   </div>
   <Card className="shrink-0 overflow-hidden border-violet-400/20 bg-gradient-to-r from-[#17143d]/95 via-[#111638]/90 to-[#25145a]/80 p-2 shadow-[0_14px_50px_rgba(26,12,92,.32)] backdrop-blur-2xl">
    <div className="flex items-center gap-3"><Target className="size-7 shrink-0 text-violet-300"/><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm font-semibold"><span>{t('sessions.phase2.room.goals')}</span><span>{goalPercent}%</span></div><p className="mt-0.5 truncate text-xs text-slate-300">{goals.find(g=>!g.completed)?.text||snapshot.subject||snapshot.title}</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-black/25"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-cyan-400" style={{width:goalPercent+'%'}}/></div></div></div>
   </Card>
-  <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-[2rem] border border-violet-400/10 bg-[radial-gradient(ellipse_at_50%_50%,rgba(47,30,128,.42),transparent_58%),linear-gradient(120deg,#06091e,#090b27_55%,#0c0624)] py-2 shadow-[inset_0_0_70px_rgba(41,34,133,.2)]">
+  <section className="relative flex min-h-0 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[2rem] border border-violet-400/10 bg-[radial-gradient(ellipse_at_50%_50%,rgba(47,30,128,.42),transparent_58%),linear-gradient(120deg,#06091e,#090b27_55%,#0c0624)] py-2 shadow-[inset_0_0_70px_rgba(41,34,133,.2)]" role="button" tabIndex={0} aria-label="Adjust session timer" onClick={()=>setShowTimerAdjust(true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowTimerAdjust(true)}}}>
    <div className="pointer-events-none absolute -inset-x-10 top-1/3 h-32 rotate-[-8deg] rounded-[50%] border-y border-cyan-400/20 bg-gradient-to-r from-transparent via-blue-500/10 to-violet-500/10 blur-xl"/>
    <div className="relative grid size-[min(56vw,13.5rem)] place-items-center rounded-full bg-[conic-gradient(from_20deg,#10d9ff,#416dff,#8b40ff,#2c31d7,#10d9ff)] p-[5px] shadow-[0_0_55px_rgba(75,71,255,.3)] sm:size-56">
     <div className="flex size-full flex-col items-center justify-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_35%,#141d51,#070a22_72%)] text-white">
@@ -166,7 +168,7 @@ export function SessionRoom({id}:{id:string}){
    {Array.from({length:6},(_,index)=>{
     const seat=seats.find(item=>item.seat_number===index+1)
     const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
-    return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id!==userId)void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#10122d]/70 py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
+    return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id===userId)setMicEnabled(v=>!v);else void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#10122d]/70 py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
      <span className={cn('relative grid size-10 place-items-center rounded-full border-2 p-0.5',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
       {person?.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full object-cover"/>:<span className="grid size-full place-items-center rounded-full bg-[#101334] text-violet-200">{person?person.display_name.slice(0,1):<Plus className="size-4"/>}</span>}
       {person?<span className="absolute -bottom-0.5 -end-0.5 size-2.5 rounded-full border border-[#090b25] bg-emerald-400"/>:null}
