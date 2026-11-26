@@ -82,7 +82,7 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if(title.trim().length<2){toast.error(t('sessions.form.invalid'));return}
-    if(!communityId){toast.error(t('sessions.form.invalid'));return}
+    if(kind!=='open_room'&&!communityId){toast.error(t('sessions.form.invalid'));return}
     if(kind==='private'&&!invitedUsers.length){toast.error(t('sessions.form.invalid'));return}
     const durationSeconds=Number(duration)*60
     if(!Number.isInteger(durationSeconds)||durationSeconds<300||durationSeconds>28800){toast.error(t('sessions.form.invalid'));return}
@@ -149,7 +149,7 @@ export function SharedSessionCreateDialog({trigger}:{trigger:React.ReactNode}) {
         </div>:null}
         {kind==='open_room'?<p className="rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{t('sessions.phase2.openRoomDescription')}</p>:null}
         <div><Label htmlFor="phase2-session-goals">{t('sessions.phase2.goals')} · {t('sessions.form.field.goals')}</Label><Textarea id="phase2-session-goals" value={goals} onChange={event=>setGoals(event.target.value)} placeholder={t('sessions.phase2.room.goalPlaceholder')}/></div>
-        <Button type="submit" disabled={loading||loadingMembers||!communityId} className="w-full"><Check className="size-4" aria-hidden="true"/>{loading?t('common.loading'):t('sessions.phase2.create')}</Button>
+        <Button type="submit" disabled={loading||loadingMembers||(kind!=='open_room'&&!communityId)} className="w-full"><Check className="size-4" aria-hidden="true"/>{loading?t('common.loading'):t('sessions.phase2.create')}</Button>
       </form>
     </DialogContent>
   </Dialog>
