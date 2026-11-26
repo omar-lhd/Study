@@ -44,7 +44,7 @@ export function NotificationsView(){
     const newRows=rows.filter(row=>!knownIds.current.has(row.id))
     if(document.visibilityState==='hidden'&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
      for(const row of newRows){
-      if(row.notification_type!=='study_session_started'&&row.notification_type!=='study_session_invitation')continue
+      if(row.notification_type!=='study_session_started'&&row.notification_type!=='study_session_created'&&row.notification_type!=='study_session_invitation)continue
       const title=payloadText(row,'title','جلسة مذاكرة')
       const message=payloadText(row,'message','لديك تحديث جديد')
       const notification=new Notification(title,{body:message,tag:row.id})
@@ -107,8 +107,8 @@ export function NotificationsView(){
    {loading&&notifications.length===0?<Card><p className="text-sm text-muted-foreground">جاري تحميل الإشعارات...</p></Card>:null}
    {!loading&&notifications.length===0?<Card><EmptyState icon={<Bell/>} title={t('notifications.inbox.empty')}/></Card>:null}
    {notifications.map(notification=>{
-    const isSession=notification.notification_type==='study_session_started'||notification.notification_type==='study_session_invitation'
-    const title=payloadText(notification,'title',notification.notification_type==='study_session_started'?'جلسة مذاكرة نشطة':'دعوة لجلسة مذاكرة')
+    const isSession=notification.notification_type==='study_session_started'||notification.notification_type==='study_session_created'||notification.notification_type==='study_session_invitation
+    const title=payloadText(notification,'title',notification.notification_type==='study_session_started'?'جلسة مذاكرة نشطة':notification.notification_type==='study_session_created'?'جلسة مذاكرة مجدولة':'دعوة لجلسة مذاكرة')
     const message=payloadText(notification,'message','لديك إشعار جديد')
     return <Card key={notification.id} className={cn('p-0',!notification.read_at?'border-primary/25 bg-primary/[0.035]':'')}>
      <button type="button" onClick={()=>void openNotification(notification)} className="flex w-full items-start gap-3 p-3 text-start">
