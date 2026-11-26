@@ -16,7 +16,7 @@ import {
  setSharedStudySessionState,requestSharedPause,voteSharedPause,requestSharedSpeakerSeat,respondSharedSpeakerSeat,
  respondSharedSessionInvitation,listMyPendingSharedSessionInvitations,listSharedSessionParticipants,
  listSharedSessionGoals,addSharedSessionGoal,updateSharedSessionGoal,listSharedSessionChat,sendSharedSessionChat,
- listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,cleanupSharedSessionPresence,getCloudCurrentUser,useNow,useSessionFormatters,
+ listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,cleanupSharedSessionPresence,expireSharedSessionVotes,getCloudCurrentUser,useNow,useSessionFormatters,
  type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal,type SessionEvent,type SessionPauseRequest,type SessionTimeChangeRequest
 } from './use-sessions'
 import { AgoraAudio } from './agora-audio'
@@ -74,6 +74,7 @@ export function SessionRoom({id}:{id:string}){
 
  const refresh=useCallback(async()=>{
   await cleanupSharedSessionPresence(id).catch(()=>0)
+  await expireSharedSessionVotes(id).catch(()=>0)
   const [s,p,g,c,r,ss,inv,u,pauses,times,ev]=await Promise.all([
    getSharedStudySessionSnapshot(id),listSharedSessionParticipants(id),listSharedSessionGoals(id),
    listSharedSessionChat(id),listSharedSessionSeatRequests(id),getSharedSessionSeatAssignments(id),
