@@ -34,7 +34,6 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [retryCount, setRetryCount] = useState(0)
-  const [codeAdmin, setCodeAdmin] = useState(false)
   const [activationCode, setActivationCode] = useState('')
 
   const pathname = usePathname()
@@ -72,13 +71,13 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         if (!active) return
         const approved = memberships.length > 0
         if (!approved) {
-          // Code administrators may enter only the isolated management route;
-          // code-admin status does not grant student/group access.
-          try {
-            await invokeAdminFunction({ action: 'check_access' })
-            if (active) setCodeAdmin(true)
-            if (pathname.startsWith('/admin/codes') && active) { setStage('ready'); return }
-          } catch { /* non-admin remains on the activation gate */ }
+          // Only an explicit visit to the isolated admin route performs the server-side check.
+          if (pathname.startsWith('/admin/codes')) {
+            try {
+              await invokeAdminFunction({ action: 'check_access' })
+              if (active) { setStage('ready'); return }
+            } catch { /* non-admin stays on the activation gate */ }
+          }
           void writeOfflineSnapshot('auth-access:' + userId, { approved: false, profileReady: false, checkedAt: Date.now() }).catch(() => {})
           setStage('activation')
           return
@@ -127,7 +126,19 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         }
 
       } else {
-        await signInWithPassword(email, password)
+        try {
+          await signInWithPassword(email, password)
+        } catch (loginCause) {
+          const loginMessage = loginCause instanceof Error ? loginCause.message : ''
+          if (/invalid login credentials|invalid_credentials|user not found/i.test(loginMessage)) {
+            setMode('signup')
+            setStatus(ar
+              ? 'تعذر تسجيل الدخول. لو دي أول مرة تستخدم البريد ده، جهزنا لك إنشاء حساب بنفس البيانات. ولو عندك حساب، ارجع لتسجيل الدخول وتأكد من كلمة المرور.'
+              : 'Could not sign in. If this is your first time with this email, the signup form is ready with your details. If you already have an account, switch back and check your password.')
+            return
+          }
+          throw loginCause
+        }
       }
       setStatus(ar ? 'تم تسجيل الدخول. بنجهز حسابك…' : 'Signed in. Preparing your account…')
     } catch (cause) {
@@ -138,15 +149,15 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
         
         setStatus(ar ? 'الحساب ده مسجل بالفعل. حولناك لتسجيل الدخول؛ استخدم نفس كلمة المرور.' : 'This email already has an account. Switched you to sign-in; use your existing password.')
       } else if (/signups? not allowed|signup disabled|signups are disabled/i.test(message)) {
-        setError(ar ? 'إنشاء الحسابات متوقف في إعدادات Supabase Auth. فعّل Allow new users to sign up.' : 'New account creation is disabled in Supabase Auth. Enable “Allow new users to sign up”.')
+        setError(ar ? 'إنشاء الحسابات متوقف مؤقتًا. حاول مرة تانية لاحقًا.' : 'Account creation is temporarily unavailable. Please try again later.')
       } else if (/email not confirmed|email_not_confirmed|not confirmed/i.test(message)) {
-        setError(ar ? 'الحساب ده من التسجيل القديم غير مفعّل. اختار «إنشاء حساب» بنفس البريد واكتب كلمة مرور جديدة لتفعيله فورًا.' : 'This account is from the previous signup flow and is unconfirmed. Choose “Create account” with the same email and a new password to activate it immediately.')
+        setError(ar ? 'البريد الإلكتروني محتاج تأكيد. افتح رسالة التأكيد ثم حاول تسجيل الدخول.' : 'Your email needs confirmation. Open the confirmation email, then try signing in.')
       } else if (/invalid login credentials/i.test(message)) {
         setError(ar ? 'البريد أو كلمة المرور غير صحيحين.' : 'Email or password is incorrect.')
       } else if (/rate|too many|429|over_request_rate_limit/i.test(message)) {
-        setError(ar ? 'محاولات إنشاء الحساب من نفس الشبكة وصلت للحد المؤقت. استنى شوية ثم جرّب مرة واحدة.' : 'Signup attempts from this network reached a temporary limit. Wait a bit, then try once.')
+        setError(ar ? 'محاولات كتير في وقت قصير. استنى شوية وجرب تاني.' : 'Too many attempts in a short time. Please wait and try again.')
       } else {
-        setError(message || (ar ? 'تعذر تسجيل الدخول.' : 'Could not authenticate.'))
+        setError(ar ? 'تعذر إكمال العملية. راجع البيانات واتصل بالإنترنت ثم حاول مجددًا.' : 'Could not complete the request. Check your details and connection, then try again.')
       }
     } finally { setBusy(false) }
   }
@@ -229,7 +240,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
       const message = cause instanceof Error ? cause.message : ''
       setError(/unique|duplicate/i.test(message)
         ? (ar ? 'اسم المستخدم ده مستخدم بالفعل. اختار اسم تاني.' : 'That username is already taken. Choose another.')
-        : message || (ar ? 'تعذر حفظ الملف الشخصي.' : 'Could not save your profile.'))
+        : (ar ? 'حصلت مشكلة مؤقتة في حفظ الملف الشخصي. حاول مرة تانية.' : 'A temporary issue prevented saving your profile. Please try again.'))
     } finally { setBusy(false) }
   }
 
@@ -285,7 +296,7 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
                 id="study-activation-code"
                 value={activationCode}
                 onChange={event => setActivationCode(event.target.value.toUpperCase())}
-                placeholder="ENTER-YOUR-CODE"
+                placeholder={ar ? 'الصق كود التفعيل هنا' : 'Paste your activation code here'}
                 dir="ltr"
                 autoCapitalize="characters"
                 autoComplete="off"
@@ -306,7 +317,6 @@ export function AppAuthGate({ children }: { children: ReactNode }) {
           <Button type="button" variant="outline" className="mt-3 w-full rounded-xl" onClick={() => { setError(''); setRetryCount(value => value + 1) }} disabled={busy}>
             {ar ? 'إعادة التحقق من العضوية' : 'Refresh membership status'}
           </Button>
-          {codeAdmin ? <a href="/admin/codes" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"><ShieldCheck className="size-4"/>{ar ? 'فتح لوحة إدارة الأكواد' : 'Open code administration'}</a> : null}
         </> : null}
 
         {status ? <p role="status" className="mt-4 rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">{status}</p> : null}
