@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Check, ChevronDown, ChevronUp, Clock3, Headphones, Lock, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Send, Target, Users, Volume2, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronDown, ChevronUp, Clock3, Headphones, Lock, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Users, Volume2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -16,7 +16,7 @@ import {
  setSharedStudySessionState,requestSharedPause,voteSharedPause,requestSharedSpeakerSeat,respondSharedSpeakerSeat,
  respondSharedSessionInvitation,listMyPendingSharedSessionInvitations,listSharedSessionParticipants,
  listSharedSessionGoals,addSharedSessionGoal,updateSharedSessionGoal,listSharedSessionChat,sendSharedSessionChat,
- listSharedSessionSeatRequests,getSharedSessionSeatAssignments,getCloudCurrentUser,useNow,useSessionFormatters,
+ listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,getCloudCurrentUser,useNow,useSessionFormatters,
  type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal
 } from './use-sessions'
 
@@ -27,17 +27,6 @@ type Invitation={invitation_id:string;session_id:string;title:string;session_typ
 const DEVICE_KEY='psc:study-session-device:v1'
 function deviceId(){let id=localStorage.getItem(DEVICE_KEY);if(!id){id=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,id)}return id}
 function clock(value:number){const s=Math.max(0,Math.floor(value));const h=Math.floor(s/3600);const m=Math.floor((s%3600)/60);const sec=s%60;return h?String(h)+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
-
-function Avatar({person,speaker}:{person:LiveSessionParticipant;speaker:boolean}){
- return <div className="flex min-w-0 flex-col items-center gap-2 text-center">
-  <div className={cn('relative grid size-[4.7rem] place-items-center rounded-full p-[2px] shadow-[0_0_24px_rgba(89,59,255,.22)] sm:size-20',speaker?'bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'bg-gradient-to-br from-slate-400/80 via-violet-500/70 to-slate-600/70')}>
-   {person.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full border-2 border-[#090b25] object-cover"/>:<div className="grid size-full place-items-center rounded-full border-2 border-[#090b25] bg-[#101334] text-xl font-bold text-violet-200">{person.display_name.slice(0,1)}</div>}
-   <span className="absolute -bottom-0.5 -end-0.5 size-4 rounded-full border-2 border-[#090b25] bg-emerald-400"/>
-   <span className={cn('absolute -bottom-1 -start-1 grid size-7 place-items-center rounded-full border border-white/10',speaker?'bg-violet-600 text-white':'bg-slate-900 text-slate-300')}>{speaker?<Volume2 className="size-3.5"/>:<MicOff className="size-3.5"/>}</span>
-  </div>
-  <span className="max-w-full truncate text-xs font-medium sm:text-sm">{person.display_name}</span>
- </div>
-}
 
 export function SessionRoom({id}:{id:string}){
  const t=useT();const router=useRouter();const format=useSessionFormatters()
@@ -53,7 +42,7 @@ export function SessionRoom({id}:{id:string}){
  const [connected,setConnected]=useState(true)
  const [chatDraft,setChatDraft]=useState('');const [goalDraft,setGoalDraft]=useState('')
  const [noteDraft,setNoteDraft]=useState('');const [mode,setMode]=useState<'focus'|'collaboration'>('collaboration')
- const [expandedListeners,setExpandedListeners]=useState(false)
+ const [showRoster,setShowRoster]=useState(false)
  const [panel,setPanel]=useState<'goals'|'chat'|'notes'|'board'>('goals')
  const [lastSync,setLastSync]=useState(Date.now()); const now=useNow(1000,snapshot?.status==='active')
  const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-lastSync)/1000):0)):0,[snapshot,now,lastSync])
@@ -65,6 +54,7 @@ export function SessionRoom({id}:{id:string}){
  const isModerator=current?.participant_role==='host'||current?.participant_role==='moderator'
  const incomingSeatRequests=seatRequests.filter(r=>r.target_participant_id===current?.id)
  const currentUserSeat=seats.find(s=>s.participant.user_id===userId)
+ const presentParticipants=participants.filter(p=>p.attendance_state==='present')
 
  const refresh=useCallback(async()=>{
   const [s,p,g,c,r,ss,inv,u]=await Promise.all([
@@ -95,7 +85,8 @@ export function SessionRoom({id}:{id:string}){
  async function sendChat(){const value=chatDraft.trim();if(!value||!userId)return;try{await sendSharedSessionChat(id,userId,value,crypto.randomUUID());setChatDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'CHAT_SEND_FAILED')}}
  async function addGoal(){const value=goalDraft.trim();if(!value||!userId)return;try{await addSharedSessionGoal(id,value,userId);setGoalDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'GOAL_ADD_FAILED')}}
  async function toggleGoal(goal:LiveSessionGoal){try{await updateSharedSessionGoal(goal.id,!goal.completed,userId||'');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'GOAL_UPDATE_FAILED')}}
- async function requestSeat(target:LiveSessionParticipant){try{await requestSharedSpeakerSeat(id,target.user_id);toast.success(t('sessions.phase2.room.seatRequestSent'));await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SEAT_REQUEST_FAILED')}}
+ async function requestSeat(target:LiveSessionParticipant){try{await requestSharedSpeakerSeat(id,target.user_id);toast.success(t('sessions.phase2.room.seatRequestSent'));setShowRoster(false);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SEAT_REQUEST_FAILED')}}
+ async function claimSeat(){if(!userId)return;try{await addSharedSpeakerSeat(id,userId);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SPEAKER_SEAT_CLAIM_FAILED')}}
  async function respondSeat(req:SeatRequest,accept:boolean){try{await respondSharedSpeakerSeat(req.id,accept);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SEAT_TRANSFER_FAILED')}}
  async function respondInvitation(inv:Invitation,join:boolean){try{await respondSharedSessionInvitation(inv.session_id,join);setInvitations(list=>list.filter(item=>item.invitation_id!==inv.invitation_id));if(join)router.push('/study/sessions/'+inv.session_id)}catch(e){toast.error(e instanceof Error?e.message:'INVITATION_FAILED')}}
  async function askPause(){try{await requestSharedPause(id);toast.success(t('sessions.phase2.room.pauseRequest'));await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PAUSE_REQUEST_FAILED')}}
@@ -128,14 +119,24 @@ export function SessionRoom({id}:{id:string}){
     </div>
    </div>
   </section>
-  <section className="grid grid-cols-3 gap-x-3 gap-y-5 px-2 sm:grid-cols-4 lg:grid-cols-6">
-   {participants.filter(p=>p.attendance_state==='present').slice(0,6).map(p=><Avatar key={p.id} person={p} speaker={seated.has(p.user_id)} />)}
+  <section className="grid shrink-0 grid-cols-3 gap-x-2 gap-y-1 px-1" aria-label="Six microphone seats">
+   {Array.from({length:6},(_,index)=>{
+    const seat=seats.find(item=>item.seat_number===index+1)
+    const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
+    return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id!==userId)void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#10122d]/70 py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
+     <span className={cn('relative grid size-10 place-items-center rounded-full border-2 p-0.5',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
+      {person?.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full object-cover"/>:<span className="grid size-full place-items-center rounded-full bg-[#101334] text-violet-200">{person?person.display_name.slice(0,1):<Plus className="size-4"/>}</span>}
+      {person?<span className="absolute -bottom-0.5 -end-0.5 size-2.5 rounded-full border border-[#090b25] bg-emerald-400"/>:null}
+     </span>
+     <span className="max-w-full truncate text-[10px] font-medium">{person?.display_name||'+'}</span>
+    </button>
+   })}
   </section>
-  <Card className="border-violet-400/20 bg-[#0e1030]/80 p-3 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
-   <button className="flex w-full items-center justify-between gap-3 px-1 py-1.5 text-sm font-medium" onClick={()=>setExpandedListeners(v=>!v)}><span className="flex items-center gap-2"><Users className="size-5 text-violet-300"/>{t('sessions.phase2.room.listeners')} · {listeners.length}</span>{expandedListeners?<ChevronUp/>:<ChevronDown/>}</button>
-   {expandedListeners?<div className="mt-2 flex flex-wrap gap-2">{listeners.map(p=><span key={p.id} className="rounded-full bg-white/5 px-3 py-1.5 text-xs">{p.display_name}</span>)}</div>:null}
-   <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/5 p-3 text-xs text-rose-200"><Lock className="size-4 shrink-0"/>{t('sessions.phase2.audio.noSeat')}</div>
-   <Button className="mt-3 w-full rounded-full bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600 text-white shadow-[0_0_24px_rgba(83,74,255,.3)]" disabled={!speakers.length} onClick={()=>speakers[0]&&requestSeat(speakers[0])}><Headphones className="me-2 size-4"/>{t('sessions.phase2.room.requestSeat')}</Button>
+  <Card className="shrink-0 border-violet-400/20 bg-[#0e1030]/80 p-2 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
+   <div className="flex items-center justify-between gap-2">
+    <button type="button" onClick={()=>setShowRoster(true)} className="flex min-w-0 items-center gap-2 text-xs font-medium"><Users className="size-4 text-violet-300"/>{t('sessions.phase2.room.listeners')} · {listeners.length}<span className="text-muted-foreground">({snapshot.participant_count})</span></button>
+    <button type="button" onClick={()=>setShowRoster(true)} className="shrink-0 rounded-full border border-violet-400/30 px-3 py-1 text-xs text-violet-200" disabled={!speakers.length}>{t('sessions.phase2.room.requestSeat')}</button>
+   </div>
   </Card>
   <div className="grid shrink-0 grid-cols-4 gap-1.5">
    {(['goals','chat','notes','board'] as const).map(p=><button key={p} onClick={()=>setPanel(p)} className={cn('flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-1 text-xs font-medium',panel===p?'border-violet-400/40 bg-violet-500/15 text-violet-200':'border-white/10 bg-[#10122d]/80 text-slate-300')}><span className="text-violet-300">{p==='goals'?<Target/>:p==='chat'?<MessageCircle/>:p==='notes'?<BookOpen/>:<Lock/>}</span>{t(('sessions.phase2.room.'+p) as MessageKey)}</button>)}
@@ -152,6 +153,7 @@ export function SessionRoom({id}:{id:string}){
    <Button variant="danger" onClick={()=>void onLeave()}><LogOut className="me-2 size-4"/>{t('sessions.phase2.room.leave')}</Button>
   </div>
   {mode==='focus'?<div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">{t('sessions.focus.banner')}</div>:null}
+  {showRoster?<div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"><Card className="max-h-[80dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4"><div className="mb-3 flex items-center justify-between"><strong className="text-base">{t('sessions.phase2.room.present')} · {snapshot.participant_count}</strong><button type="button" onClick={()=>setShowRoster(false)} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close participant list"><X className="size-4"/></button></div><div className="space-y-1">{presentParticipants.map(person=>{const speaker=seated.has(person.user_id);return <button key={person.id} type="button" onClick={()=>speaker&&person.user_id!==userId?void requestSeat(person):undefined} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-white/5"><span className={cn('size-2.5 shrink-0 rounded-full',speaker?'bg-emerald-400':'bg-amber-400')}/>{person.avatar_url?<img src={person.avatar_url} alt="" className="size-9 rounded-full object-cover"/>:<span className="grid size-9 place-items-center rounded-full bg-violet-500/20">{person.display_name.slice(0,1)}</span>}<span className="min-w-0 flex-1 truncate text-sm">{person.display_name}</span>{speaker&&person.user_id!==userId?<Headphones className="size-4 text-violet-300"/>:null}</button>})}</div></Card></div>:null}
   {invitations.filter(i=>i.session_id!==id).map(inv=><div key={inv.invitation_id} className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"><Card className="w-full max-w-sm border-violet-400/30 bg-[#111333] p-5"><div className="mb-3 flex items-center gap-2 text-violet-300"><Users className="size-5"/><strong>{t('sessions.phase2.invitation.title')}</strong></div><p className="text-sm">{inv.title}</p><div className="mt-4 flex flex-col gap-2"><Button onClick={()=>respondInvitation(inv,true)}>{t('sessions.phase2.invitation.join')}</Button><Button variant="outline" onClick={()=>respondInvitation(inv,false)}><X className="me-2 size-4"/>{t('sessions.phase2.invitation.keepSolo')}</Button></div></Card></div>)}
  </main>
 }
