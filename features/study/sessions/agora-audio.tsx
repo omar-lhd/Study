@@ -71,6 +71,7 @@ export function AgoraAudio({
   volumes:Record<string,number>
   onStatus?:(status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>void
 }){
+  const [joined,setJoined]=useState(false)
   const clientRef=useRef<AgoraClient|null>(null)
   const sdkRef=useRef<AgoraSdk|null>(null)
   const localTrackRef=useRef<AgoraTrack|null>(null)
@@ -132,14 +133,16 @@ export function AgoraAudio({
         await client.join(token.appId,token.channelName,token.token,token.uid)
         if(disposed){await client.leave();return}
         joinedRef.current=true
+        setJoined(true)
         onStatus?.('connected')
       }catch(error){
-        if(!disposed)onStatus?.('error',error instanceof Error?error.message:'AGORA_CONNECT_FAILED')
+        if(!disposed){setJoined(false);onStatus?.('error',error instanceof Error?error.message:'AGORA_CONNECT_FAILED')}
       }
     })()
     return()=>{
       disposed=true
       joinedRef.current=false
+      setJoined(false)
       const client=clientRef.current
       const track=localTrackRef.current
       clientRef.current=null
@@ -155,7 +158,7 @@ export function AgoraAudio({
     const sync=async()=>{
       const client=clientRef.current
       const sdk=sdkRef.current
-      if(!client||!sdk||!joinedRef.current)return
+      if(!client||!sdk||!joined||!joinedRef.current)return
       const shouldPublish=canPublish&&micEnabled
       try{
         if(shouldPublish&&!publishedRef.current){
@@ -182,7 +185,7 @@ export function AgoraAudio({
     }
     void sync()
     return()=>{canceled=true}
-  },[sessionId,canPublish,micEnabled,onStatus])
+  },[sessionId,canPublish,micEnabled,joined,onStatus])
 
   useEffect(()=>{
     const client=clientRef.current
