@@ -230,7 +230,10 @@ begin
  if p_duration_seconds not between 300 and 28800 then raise exception 'INVALID_DURATION'; end if;
  if p_subject_color is not null and p_subject_color !~ '^#[0-9A-Fa-f]{6}$' then raise exception 'INVALID_SUBJECT_COLOR'; end if;
  if coalesce(array_length(p_invited_users,1),0)>100 or coalesce(array_length(p_goals,1),0)>20 then raise exception 'TOO_MANY_ITEMS'; end if;
- select gm.group_id into v_group from public.group_members gm where gm.user_id=v_user order by gm.joined_at limit 1;
+ select gm.group_id into v_group from public.group_members gm
+  join public.study_groups sg on sg.id=gm.group_id
+  where gm.user_id=v_user and sg.created_by=v_user
+  order by gm.joined_at limit 1;
  if v_group is null then raise exception 'APPROVED_COMMUNITY_MEMBERSHIP_REQUIRED' using errcode='42501'; end if;
  if p_session_type='private' and p_access_type='group' then raise exception 'PRIVATE_SESSION_ACCESS_MISMATCH'; end if;
  if p_session_type='open_room' and p_access_type<>'group' then raise exception 'OPEN_ROOM_MUST_BE_GROUP_VISIBLE'; end if;
@@ -241,7 +244,8 @@ begin
  if p_status='active' then insert into public.study_session_intervals(session_id,participant_id) select v_session,id from public.study_session_participants where session_id=v_session and user_id=v_user; end if;
  foreach v_invitee in array coalesce(p_invited_users,'{}'::uuid[]) loop
   if v_invitee<>v_user then
-   if not exists(select 1 from public.group_members gm where gm.group_id=v_group and gm.user_id=v_invitee) then raise exception 'INVITEE_NOT_IN_COMMUNITY'; end if;
+   if not exists(select 1 from public.group_members gm join public.study_groups sg on sg.id=gm.group_id
+       where gm.group_id=v_group and gm.user_id=v_invitee and sg.created_by=v_user) then raise exception 'INVITEE_NOT_IN_COMMUNITY'; end if;
    insert into public.study_session_participants(session_id,user_id,participant_role,attendance_state,invited_by,invited_at) values(v_session,v_invitee,'member','invited',v_user,now()) on conflict(session_id,user_id) do nothing;
    insert into public.study_session_invitations(session_id,inviter_id,invitee_id) values(v_session,v_user,v_invitee) on conflict(session_id,invitee_id) do nothing;
   end if;
@@ -259,11 +263,17 @@ begin
  if char_length(v_device) not between 12 and 128 then raise exception 'INVALID_DEVICE_ID'; end if;
  select * into v_s from public.study_sessions where id=p_session_id for update;
  if not found then raise exception 'SESSION_NOT_FOUND'; end if;
- if not private.is_group_member(v_s.group_id) then raise exception 'NOT_COMMUNITY_MEMBER' using errcode='42501'; end if;
+ if not exists(select 1 from public.group_members gm join public.study_groups sg on sg.id=gm.group_id
+     where gm.group_id=v_s.group_id and gm.user_id=v_user and sg.created_by=v_s.created_by) then
+   raise exception 'NOT_COMMUNITY_MEMBER' using errcode='42501';
+ end if;
  if v_s.status in('completed','canceled') then raise exception 'SESSION_CLOSED'; end if;
  select * into v_p from public.study_session_participants where session_id=p_session_id and user_id=v_user for update;
  if not found then
-  if v_s.access_type<>'group' then raise exception 'INVITATION_REQUIRED' using errcode='42501'; end if;
+  if v_s.access_type<>'group' or not exists(
+    select 1 from public.group_members gm join public.study_groups sg on sg.id=gm.group_id
+    where gm.group_id=v_s.group_id and gm.user_id=v_user and sg.created_by=v_s.created_by
+  ) then raise exception 'INVITATION_REQUIRED' using errcode='42501'; end if;
   insert into public.study_session_participants(session_id,user_id,attendance_state,first_joined_at) values(p_session_id,v_user,'present',now()) returning * into v_p;
  else
   update public.study_session_participants set attendance_state='present',first_joined_at=coalesce(first_joined_at,now()),updated_at=now() where id=v_p.id returning * into v_p;
