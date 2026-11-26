@@ -106,13 +106,18 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
  const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null)},[])
  function eventLabel(event:SessionEvent){
-  const targetId=typeof event.payload.participant_id==='string'?event.payload.participant_id:typeof event.payload.user_id==='string'?event.payload.user_id:null
+  const targetId=typeof event.payload.participant_id==='string'?event.payload.participant_id:typeof event.payload.user_id==='string'?event.payload.user_id:typeof event.payload.target_participant_id==='string'?event.payload.target_participant_id:null
   const target=targetId?participants.find(person=>person.id===targetId||person.user_id===targetId):undefined
-  const actor=target?.display_name??participants.find(person=>person.user_id===event.actor_id)?.display_name??'عضو'
+  const actor=participants.find(person=>person.user_id===event.actor_id)?.display_name??target?.display_name??'عضو'
+  const targetName=target?.display_name??'عضو'
   switch(event.event_type){
    case 'participant.joined':return actor+' انضم للجلسة'
    case 'participant.left':return actor+' غادر الجلسة'
    case 'speaker.seat_granted':return actor+' صعد لمقعد الصوت'
+   case 'speaker.seat_requested':return actor+' طلب التحدث من '+targetName
+   case 'speaker.seat_request_accepted':return targetName+' وافق على طلب الصوت'
+   case 'speaker.seat_request_rejected':return targetName+' رفض طلب الصوت'
+   case 'speaker.seat_request_expired':return 'انتهت صلاحية طلب الصوت'
    case 'speaker.seat_released':return actor+' ترك مقعد الصوت'
    case 'session.pause_requested':return actor+' طلب إيقاف المؤقت'
    case 'session.pause_vote':return actor+' صوّت على إيقاف المؤقت'
