@@ -302,6 +302,17 @@ export const en: Record<MessageKey, string> = {
   'sessions.phase2.room.loading': 'Loading room…',
   'sessions.phase2.room.loadError': 'Could not load the room. Check your connection and permissions.',
 
+  'sessions.phase2.createTitle': 'Create a shared study session',
+  'sessions.phase2.sessionType': 'Session type',
+  'sessions.phase2.startTime': 'Start time',
+  'sessions.phase2.community': 'Community',
+  'sessions.phase2.noMembers': 'No members are available in this community.',
+  'sessions.phase2.access': 'Room access',
+  'sessions.phase2.inviteOnly': 'Invited members only',
+  'sessions.phase2.communityAccess': 'All community members',
+  'sessions.phase2.openRoomDescription': 'An open study room that eligible members of your community can join while it is open.',
+  'sessions.phase2.create': 'Create session',
+
   'planner.title': 'Planner',
   'planner.description': 'Subjects, lessons, tasks and exams in one place.',
   'planner.subjects': 'Subjects',
