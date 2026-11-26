@@ -40,7 +40,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="pt-safe sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur md:hidden">
+        <header className="pt-safe sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur md:hidden" data-app-topbar>
           <div className="flex h-14 items-center justify-between gap-2 px-4">
             <Brand showName={false} />
             <nav aria-label={t('nav.account')} className="flex items-center">
@@ -53,13 +53,13 @@ export async function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 pb-28 md:px-8 md:py-8 md:pb-10">
+        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 pb-28 md:px-8 md:py-8 md:pb-10" data-app-main>
           {children}
         </main>
 
         <nav
           aria-label={t('nav.primary')}
-          className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden"
+          className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden" data-app-bottom-nav
         >
           <div className="flex items-stretch gap-1 px-2 pt-1.5 pb-1.5">
             {PRIMARY_NAV.map((item) => (
