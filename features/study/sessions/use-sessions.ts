@@ -173,3 +173,114 @@ export function useSessionFormatters() {
     }
   }, [locale, t])
 }
+
+export interface LiveSessionParticipant {
+  id: string
+  user_id: string
+  participant_role: 'host' | 'moderator' | 'member'
+  attendance_state: 'invited' | 'present' | 'left' | 'suspended'
+  focus_mode: boolean
+  display_name: string
+  avatar_url: string | null
+}
+
+export interface LiveSessionGoal {
+  id: string
+  text: string
+  completed: boolean
+  created_by: string
+}
+
+export async function listSharedStudySessions(groupId: string) {
+  return cloudRest<Array<Record<string, unknown>>>(
+    `study_sessions?group_id=eq.${encodeURIComponent(groupId)}&select=*&order=starts_at.asc.nullslast,created_at.desc`
+  )
+}
+
+export async function listSharedSessionParticipants(sessionId: string) {
+  const rows = await cloudRest<Array<{
+    id:string;user_id:string;participant_role:LiveSessionParticipant['participant_role'];
+    attendance_state:LiveSessionParticipant['attendance_state'];focus_mode:boolean;
+    profiles:{display_name:string;avatar_url:string|null}|null
+  }>>(
+    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode,profiles(display_name,avatar_url)&order=created_at.asc`
+  )
+  return rows.map(row=>({
+    id:row.id,user_id:row.user_id,participant_role:row.participant_role,
+    attendance_state:row.attendance_state,focus_mode:row.focus_mode,
+    display_name:row.profiles?.display_name ?? 'Study member',
+    avatar_url:row.profiles?.avatar_url ?? null
+  }))
+}
+
+export async function listSharedSessionGoals(sessionId:string) {
+  return cloudRest<LiveSessionGoal[]>(
+    `study_session_goals?session_id=eq.${encodeURIComponent(sessionId)}&select=id,text,completed,created_by&order=created_at.asc`
+  )
+}
+
+export async function addSharedSessionGoal(sessionId:string,text:string,userId:string) {
+  return cloudRest<LiveSessionGoal[]>('study_session_goals',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({session_id:sessionId,text:text.trim(),created_by:userId})
+  })
+}
+
+export async function updateSharedSessionGoal(goalId:string,completed:boolean,userId:string) {
+  return cloudRest<LiveSessionGoal[]>(`study_session_goals?id=eq.${encodeURIComponent(goalId)}`,{
+    method:'PATCH',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({completed,completed_by:completed?userId:null,completed_at:completed?new Date().toISOString():null,updated_at:new Date().toISOString()})
+  })
+}
+
+export async function listSharedSessionNotes(sessionId:string) {
+  return cloudRest<Array<{id:string;author_id:string;body:string;note_kind:string;created_at:string;updated_at:string}>>(
+    `study_session_notes?session_id=eq.${encodeURIComponent(sessionId)}&select=*&order=created_at.desc`
+  )
+}
+
+export async function addSharedSessionNote(sessionId:string,authorId:string,body:string,noteKind:'note'|'question'|'answer'|'resource'='note') {
+  return cloudRest('study_session_notes',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({session_id:sessionId,author_id:authorId,body,note_kind:noteKind})
+  })
+}
+
+export async function listSharedSessionChat(sessionId:string) {
+  return cloudRest<Array<{id:string;sender_id:string;content:string;client_event_id:string;created_at:string}>>(
+    `study_session_chat?session_id=eq.${encodeURIComponent(sessionId)}&select=*&order=created_at.asc&limit=200`
+  )
+}
+
+export async function sendSharedSessionChat(sessionId:string,senderId:string,content:string,clientEventId:string) {
+  return cloudRest('study_session_chat',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({session_id:sessionId,sender_id:senderId,content:content.trim(),client_event_id:clientEventId})
+  })
+}
+
+export async function createSharedSessionFileRecord(sessionId:string,uploaderId:string,file:File,storagePath:string) {
+  if(file.size>50*1024*1024) throw new Error('SESSION_FILE_TOO_LARGE')
+  return cloudRest('study_session_files',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({session_id:sessionId,uploader_id:uploaderId,storage_path:storagePath,file_name:file.name,mime_type:file.type||'application/octet-stream',file_size:file.size})
+  })
+}
+
+export async function getSharedSessionSeatAssignments(sessionId:string) {
+  return cloudRest<Array<{seat_number:number;participant_id:string;granted_by:string;participant: {user_id:string;profiles:{display_name:string;avatar_url:string|null}|null}}>>(
+    `study_session_speaker_seats?session_id=eq.${encodeURIComponent(sessionId)}&select=seat_number,participant_id,granted_by,participant:study_session_participants(user_id,profiles(display_name,avatar_url))&order=seat_number.asc`
+  )
+}
+
+export async function listSharedSessionPauseRequests(sessionId:string) {
+  return cloudRest<Array<{id:string;requested_by:string;status:string;yes_count:number;no_count:number;expires_at:string;electorate:string[]}>>(
+    `study_session_pause_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=*&order=created_at.desc`
+  )
+}
+
+export async function listSharedSessionSeatRequests(sessionId:string) {
+  return cloudRest<Array<{id:string;requester_id:string;target_participant_id:string;status:string;expires_at:string;created_at:string}>>(
+    `study_session_seat_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=*&order=created_at.asc`
+  )
+}
