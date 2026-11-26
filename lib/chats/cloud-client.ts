@@ -175,6 +175,8 @@ export function signOutCloud() {
   writeCloudSession(null)
 }
 
+export async function getValidCloudSession(): Promise<CloudAuthSession> { return getValidSession() }
+
 async function getValidSession(): Promise<CloudAuthSession> {
   let session = readCloudSession()
   if (!session) throw new Error('Sign in with your approved community email first')
