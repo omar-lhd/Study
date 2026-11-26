@@ -106,7 +106,7 @@ export function SessionRoom({id}:{id:string}){
  const completedGoals=goals.filter(g=>g.completed).length
  const goalPercent=goals.length?Math.round(completedGoals/goals.length*100):0
  const isFocus=mode==='focus'
- return <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 pb-28 sm:gap-5">
+ return <main className="mx-auto flex h-[calc(100dvh-10rem)] min-h-0 w-full max-w-6xl flex-col gap-2 overflow-hidden pb-2 sm:gap-3">
   <div className="flex items-center justify-between gap-3">
    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
    <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -115,12 +115,12 @@ export function SessionRoom({id}:{id:string}){
    </div>
    <button className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-300" aria-label="More"><MoreHorizontal/></button>
   </div>
-  <Card className="overflow-hidden border-violet-400/20 bg-gradient-to-r from-[#17143d]/95 via-[#111638]/90 to-[#25145a]/80 p-4 shadow-[0_14px_50px_rgba(26,12,92,.32)] backdrop-blur-2xl">
+  <Card className="shrink-0 overflow-hidden border-violet-400/20 bg-gradient-to-r from-[#17143d]/95 via-[#111638]/90 to-[#25145a]/80 p-2 shadow-[0_14px_50px_rgba(26,12,92,.32)] backdrop-blur-2xl">
    <div className="flex items-center gap-3"><Target className="size-7 shrink-0 text-violet-300"/><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm font-semibold"><span>{t('sessions.phase2.room.goals')}</span><span>{goalPercent}%</span></div><p className="mt-0.5 truncate text-xs text-slate-300">{goals.find(g=>!g.completed)?.text||snapshot.subject||snapshot.title}</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-black/25"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-cyan-400" style={{width:goalPercent+'%'}}/></div></div></div>
   </Card>
-  <section className="relative flex min-h-[17rem] items-center justify-center overflow-hidden rounded-[2rem] border border-violet-400/10 bg-[radial-gradient(ellipse_at_50%_50%,rgba(47,30,128,.42),transparent_58%),linear-gradient(120deg,#06091e,#090b27_55%,#0c0624)] py-7 shadow-[inset_0_0_70px_rgba(41,34,133,.2)]">
+  <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-[2rem] border border-violet-400/10 bg-[radial-gradient(ellipse_at_50%_50%,rgba(47,30,128,.42),transparent_58%),linear-gradient(120deg,#06091e,#090b27_55%,#0c0624)] py-2 shadow-[inset_0_0_70px_rgba(41,34,133,.2)]">
    <div className="pointer-events-none absolute -inset-x-10 top-1/3 h-32 rotate-[-8deg] rounded-[50%] border-y border-cyan-400/20 bg-gradient-to-r from-transparent via-blue-500/10 to-violet-500/10 blur-xl"/>
-   <div className="relative grid size-56 place-items-center rounded-full bg-[conic-gradient(from_20deg,#10d9ff,#416dff,#8b40ff,#2c31d7,#10d9ff)] p-[5px] shadow-[0_0_55px_rgba(75,71,255,.3)] sm:size-64">
+   <div className="relative grid size-[min(56vw,13.5rem)] place-items-center rounded-full bg-[conic-gradient(from_20deg,#10d9ff,#416dff,#8b40ff,#2c31d7,#10d9ff)] p-[5px] shadow-[0_0_55px_rgba(75,71,255,.3)] sm:size-56">
     <div className="flex size-full flex-col items-center justify-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_35%,#141d51,#070a22_72%)] text-white">
      <div className="mb-2 grid size-10 place-items-center rounded-full bg-blue-500/15 text-cyan-300">{snapshot.status==='active'?<Pause className="size-5"/>:<Play className="size-5"/>}</div>
      <div className="text-[2.7rem] font-bold tracking-tight tabular-nums sm:text-5xl" dir="ltr">{clock(remaining)}</div>
@@ -129,7 +129,7 @@ export function SessionRoom({id}:{id:string}){
    </div>
   </section>
   <section className="grid grid-cols-3 gap-x-3 gap-y-5 px-2 sm:grid-cols-4 lg:grid-cols-6">
-   {participants.filter(p=>p.attendance_state==='present').slice(0,18).map(p=><Avatar key={p.id} person={p} speaker={seated.has(p.user_id)} />)}
+   {participants.filter(p=>p.attendance_state==='present').slice(0,6).map(p=><Avatar key={p.id} person={p} speaker={seated.has(p.user_id)} />)}
   </section>
   <Card className="border-violet-400/20 bg-[#0e1030]/80 p-3 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
    <button className="flex w-full items-center justify-between gap-3 px-1 py-1.5 text-sm font-medium" onClick={()=>setExpandedListeners(v=>!v)}><span className="flex items-center gap-2"><Users className="size-5 text-violet-300"/>{t('sessions.phase2.room.listeners')} · {listeners.length}</span>{expandedListeners?<ChevronUp/>:<ChevronDown/>}</button>
@@ -137,7 +137,7 @@ export function SessionRoom({id}:{id:string}){
    <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/5 p-3 text-xs text-rose-200"><Lock className="size-4 shrink-0"/>{t('sessions.phase2.audio.noSeat')}</div>
    <Button className="mt-3 w-full rounded-full bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600 text-white shadow-[0_0_24px_rgba(83,74,255,.3)]" disabled={!speakers.length} onClick={()=>speakers[0]&&requestSeat(speakers[0])}><Headphones className="me-2 size-4"/>{t('sessions.phase2.room.requestSeat')}</Button>
   </Card>
-  <div className="grid grid-cols-4 gap-2">
+  <div className="grid shrink-0 grid-cols-4 gap-1.5">
    {(['goals','chat','notes','board'] as const).map(p=><button key={p} onClick={()=>setPanel(p)} className={cn('flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-1 text-xs font-medium',panel===p?'border-violet-400/40 bg-violet-500/15 text-violet-200':'border-white/10 bg-[#10122d]/80 text-slate-300')}><span className="text-violet-300">{p==='goals'?<Target/>:p==='chat'?<MessageCircle/>:p==='notes'?<BookOpen/>:<Lock/>}</span>{t(('sessions.phase2.room.'+p) as MessageKey)}</button>)}
   </div>
   {panel==='goals'?<Card className="border-violet-400/15 bg-[#0d102b]/90 p-4"><div className="mb-3 flex items-center gap-2 font-semibold"><Target className="size-4 text-violet-300"/>{t('sessions.phase2.room.goals')}</div><div className="space-y-2">{goals.map(g=><button key={g.id} onClick={()=>toggleGoal(g)} className="flex w-full items-center gap-2 rounded-xl bg-white/5 p-3 text-start text-sm"><span className={cn('grid size-5 place-items-center rounded-md border',g.completed?'border-cyan-400 bg-cyan-500/20 text-cyan-300':'border-white/20')}>{g.completed?<Check className="size-3.5"/>:null}</span><span className={cn(g.completed?'text-slate-500 line-through':'')}>{g.text}</span></button>)}</div><form className="mt-3 flex gap-2" onSubmit={e=>{e.preventDefault();void addGoal()}}><input value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} placeholder={t('sessions.phase2.room.goalPlaceholder')} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"/><Button disabled={!goalDraft.trim()}><Send className="size-4"/></Button></form></Card>:null}
@@ -145,7 +145,7 @@ export function SessionRoom({id}:{id:string}){
   {panel==='notes'?<Card className="border-violet-400/15 bg-[#0d102b]/90 p-4"><div className="mb-3 flex items-center gap-2 font-semibold"><BookOpen className="size-4 text-violet-300"/>{t('sessions.phase2.room.notes')}</div><Textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder={t('sessions.phase2.room.notePlaceholder')} className="min-h-28"/><Button className="mt-2" onClick={async()=>{if(!userId||!noteDraft.trim())return;try{const {addSharedSessionNote}=await import('./use-sessions');await addSharedSessionNote(id,userId,noteDraft.trim());setNoteDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'NOTE_SAVE_FAILED')}}}>{t('sessions.phase2.room.send')}</Button></Card>:null}
   {panel==='board'?<Card className="border-violet-400/15 bg-[#0d102b]/90 p-4"><div className="font-semibold">{t('sessions.phase2.room.board')}</div><p className="mt-2 text-sm text-muted-foreground">{t('sessions.phase2.room.boardUnavailable')}</p></Card>:null}
   {unreadRequests.map(req=><Card key={req.id} className="border-cyan-400/30 bg-violet-500/10 p-3"><p className="text-sm font-semibold">{t('sessions.phase2.room.seatRequestPending')}</p><div className="mt-2 flex gap-2"><Button onClick={()=>respondSeat(req,true)}>{t('sessions.phase2.room.accept')}</Button><Button variant="outline" onClick={()=>respondSeat(req,false)}>{t('sessions.phase2.room.reject')}</Button></div></Card>)}
-  <div className="grid grid-cols-2 gap-2 rounded-2xl border border-violet-400/15 bg-[#10122e]/85 p-3 sm:grid-cols-4">
+  <div className="grid shrink-0 grid-cols-2 gap-1.5 rounded-2xl border border-violet-400/15 bg-[#10122e]/85 p-2 sm:grid-cols-4">
    {isModerator&&snapshot.status==='scheduled'?<Button onClick={()=>void changeState('start')}><Play className="me-2 size-4"/>{t('sessions.phase2.room.start')}</Button>:isModerator&&snapshot.status==='active'?<Button onClick={()=>void changeState('pause')}><Pause className="me-2 size-4"/>{t('sessions.phase2.room.pause')}</Button>:isModerator&&snapshot.status==='paused'?<Button onClick={()=>void changeState('resume')}><Play className="me-2 size-4"/>{t('sessions.phase2.room.resume')}</Button>:<Button variant="outline" onClick={()=>void askPause()}>{t('sessions.phase2.room.pauseRequest')}</Button>}
    <Button variant="outline" onClick={()=>setMode(m=>m==='focus'?'collaboration':'focus')}>{isFocus?t('sessions.phase2.room.collaboration'):t('sessions.phase2.room.focus')}</Button>
    {currentUserSeat?<Button variant="outline" onClick={async()=>{try{const {releaseSharedSpeakerSeat}=await import('./use-sessions');await releaseSharedSpeakerSeat(id);await refresh()}catch(e){toast.error(String(e))}}}><MicOff className="me-2 size-4"/>{t('sessions.phase2.room.releaseSeat')}</Button>:<span className="flex items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-500/5 px-2 text-xs text-rose-200"><Lock className="size-4"/>{t('sessions.phase2.audio.unavailable')}</span>}
