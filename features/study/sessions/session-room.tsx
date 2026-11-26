@@ -128,7 +128,7 @@ export function SessionRoom({id}:{id:string}){
    </div>
   </section>
   <section className="grid grid-cols-3 gap-x-3 gap-y-5 px-2 sm:grid-cols-4 lg:grid-cols-6">
-   {participants.filter(p=>p.attendance_state==='present').slice(0,18).map(p=><Avatar key={p.id} person={p} speaker={seated.has(p.user_id}/>)}
+   {participants.filter(p=>p.attendance_state==='present').slice(0,18).map(p=><Avatar key={p.id} person={p} speaker={seated.has(p.user_id)} />)}
   </section>
   <Card className="border-violet-400/20 bg-[#0e1030]/80 p-3 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
    <button className="flex w-full items-center justify-between gap-3 px-1 py-1.5 text-sm font-medium" onClick={()=>setExpandedListeners(v=>!v)}><span className="flex items-center gap-2"><Users className="size-5 text-violet-300"/>{t('sessions.phase2.room.listeners')} · {listeners.length}</span>{expandedListeners?<ChevronUp/>:<ChevronDown/>}</button>
