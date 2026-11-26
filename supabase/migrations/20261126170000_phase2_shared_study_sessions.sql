@@ -7,7 +7,7 @@ grant usage on schema private to authenticated;
 
 create table if not exists public.study_sessions (
  id uuid primary key default gen_random_uuid(),
- group_id uuid not null references public.groups(id) on delete cascade,
+ group_id uuid not null references public.study_groups(id) on delete cascade,
  created_by uuid not null references auth.users(id) on delete restrict,
  host_id uuid not null references auth.users(id) on delete restrict,
  title text not null check(char_length(trim(title)) between 2 and 100),
@@ -230,7 +230,7 @@ begin
  if p_duration_seconds not between 300 and 28800 then raise exception 'INVALID_DURATION'; end if;
  if p_subject_color is not null and p_subject_color !~ '^#[0-9A-Fa-f]{6}$' then raise exception 'INVALID_SUBJECT_COLOR'; end if;
  if coalesce(array_length(p_invited_users,1),0)>100 or coalesce(array_length(p_goals,1),0)>20 then raise exception 'TOO_MANY_ITEMS'; end if;
- select gm.group_id into v_group from public.group_members gm where gm.user_id=v_user order by gm.created_at limit 1;
+ select gm.group_id into v_group from public.group_members gm where gm.user_id=v_user order by gm.joined_at limit 1;
  if v_group is null then raise exception 'APPROVED_COMMUNITY_MEMBERSHIP_REQUIRED' using errcode='42501'; end if;
  if p_session_type='private' and p_access_type='group' then raise exception 'PRIVATE_SESSION_ACCESS_MISMATCH'; end if;
  if p_session_type='open_room' and p_access_type<>'group' then raise exception 'OPEN_ROOM_MUST_BE_GROUP_VISIBLE'; end if;
