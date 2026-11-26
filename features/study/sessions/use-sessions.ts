@@ -428,7 +428,7 @@ export async function listSharedSessionEvents(sessionId:string) {
 
 export async function listSharedSessionTimeChangeRequests(sessionId:string) {
   return cloudRest<SessionTimeChangeRequest[]>(
-    `study_session_time_change_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&select=*&order=created_at.desc`
+    `study_session_time_change_requests?session_id=eq.${encodeURIComponent(sessionId)}&status=eq.pending&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=*&order=created_at.desc`
   )
 }
 
