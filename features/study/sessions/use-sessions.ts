@@ -500,3 +500,90 @@ export async function getAgoraRtcToken(sessionId:string,intent:'listen'|'publish
   return data
 }
 
+
+/** Subscribe to session table changes through Supabase Realtime without adding a second client SDK. */
+export function subscribeSharedSessionRealtime(sessionId:string,onChange:()=>void){
+  let active=true
+  let socket:WebSocket|null=null
+  let reconnectDelay=1000
+  let reconnectTimer:number|undefined
+  let heartbeatTimer:number|undefined
+  let tokenTimer:number|undefined
+  let ref=1
+  const topic=`realtime:study-session-${sessionId}`
+  const clearSocketTimers=()=>{
+    if(heartbeatTimer!==undefined)window.clearInterval(heartbeatTimer)
+    if(tokenTimer!==undefined)window.clearInterval(tokenTimer)
+    heartbeatTimer=undefined
+    tokenTimer=undefined
+  }
+  const send=(message:Record<string,unknown>)=>{
+    if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message))
+  }
+  const connect=async()=>{
+    if(!active)return
+    try{
+      const session=await getValidCloudSession()
+      const base=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,'')
+      const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if(!base||!key)throw new Error('SUPABASE_ENV_NOT_CONFIGURED')
+      const wsUrl=base.replace(/^https:/,'wss:').replace(/^http:/,'ws:')+'/realtime/v1/websocket'
+      const url=new URL(wsUrl)
+      url.searchParams.set('apikey',key)
+      url.searchParams.set('vsn','1.0.0')
+      socket=new WebSocket(url.toString())
+      socket.onopen=()=>{
+        if(!active||!socket)return
+        reconnectDelay=1000
+        const tables=[
+          'study_sessions','study_session_participants','study_session_devices',
+          'study_session_speaker_seats','study_session_seat_requests',
+          'study_session_pause_requests','study_session_time_change_requests',
+          'study_session_whiteboard_pages','study_session_whiteboard_elements',
+          'study_session_events','study_session_chat','study_session_goals',
+          'study_session_notes','study_session_invitations'
+        ]
+        send({
+          topic,event:'phx_join',ref:String(ref),join_ref:String(ref),
+          payload:{
+            config:{
+              broadcast:{ack:false,self:false},
+              presence:{key:session.user.id},
+              postgres_changes:tables.map(table=>({event:'*',schema:'public',table,filter:`session_id=eq.${sessionId}`}))
+            },
+            access_token:session.access_token
+          }
+        })
+        ref++
+        heartbeatTimer=window.setInterval(()=>send({topic:'phoenix',event:'heartbeat',payload:{},ref:String(ref++)}),25000)
+        tokenTimer=window.setInterval(()=>void getValidCloudSession().then(next=>send({topic,event:'access_token',payload:{access_token:next.access_token},ref:String(ref++)})).catch(()=>{}),240000)
+      }
+      socket.onmessage=event=>{
+        try{
+          const message=JSON.parse(String(event.data)) as {event?:string;payload?:{status?:string};ref?:string}
+          if(message.event==='postgres_changes'||message.event==='presence_diff'||message.event==='broadcast')onChange()
+          if(message.event==='phx_reply'&&message.payload?.status==='error')onChange()
+        }catch{/* Ignore malformed socket frames; the next database refresh remains authoritative. */}
+      }
+      socket.onerror=()=>{onChange()}
+      socket.onclose=()=>{
+        clearSocketTimers()
+        if(!active)return
+        reconnectTimer=window.setTimeout(()=>{void connect()},reconnectDelay)
+        reconnectDelay=Math.min(15000,reconnectDelay*2)
+      }
+    }catch{
+      if(!active)return
+      reconnectTimer=window.setTimeout(()=>{void connect()},reconnectDelay)
+      reconnectDelay=Math.min(15000,reconnectDelay*2)
+    }
+  }
+  void connect()
+  return()=>{
+    active=false
+    clearSocketTimers()
+    if(reconnectTimer!==undefined)window.clearTimeout(reconnectTimer)
+    socket?.close()
+    socket=null
+  }
+}
