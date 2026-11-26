@@ -52,8 +52,10 @@ export interface SharedSessionCreateInput {
 }
 
 export async function listMyStudyCommunities() {
+  const {user}=await import('@/lib/chats/cloud-client').then(module=>({user:module.readCloudSession()?.user}))
+  if(!user?.id) throw new Error('AUTH_REQUIRED')
   return cloudRest<Array<{id:string;name:string;created_by:string}>>(
-    'study_groups?select=id,name,created_by&order=created_at.asc'
+    `study_groups?select=id,name,created_by&group_members.user_id=eq.${encodeURIComponent(user.id)}&order=created_at.asc`
   )
 }
 
