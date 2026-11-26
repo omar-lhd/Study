@@ -60,7 +60,7 @@ export function SessionRoom({id}:{id:string}){
  const [rtcError,setRtcError]=useState<string|null>(null)
  const [timeDelta,setTimeDelta]=useState(600)
  const [panel,setPanel]=useState<'goals'|'chat'|'notes'|'board'>('goals')
- const [lastSync,setLastSync]=useState(Date.now()); const now=useNow(1000,snapshot?.status==='active')
+ const [lastSync,setLastSync]=useState(Date.now()); const now=useNow(1000,snapshot?.status==='active'||pauseRequests.length>0||timeRequests.length>0)
  const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-lastSync)/1000):0)):0,[snapshot,now,lastSync])
  const remaining=snapshot?Math.max(0,snapshot.planned_duration_seconds-elapsed):0
  const current=participants.find(p=>p.user_id===userId)
