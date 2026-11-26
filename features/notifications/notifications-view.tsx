@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/headers'
 import { EmptyState } from '@/components/ui/states'
-import { useT } from '@/lib/preferences/client'
+import { useT } from '@/components/providers/preferences-provider'
 import { cn } from '@/lib/utils'
 import {
   getMySessionNotificationPreferences,listMyInAppNotifications,markMyNotificationRead,
   saveMySessionNotificationPreferences,type InAppNotification,type SessionNotificationPreferences
 } from './use-notifications'
-import type { MessageKey } from '@/i18n/config'
+import type { MessageKey } from '@/i18n/messages/ar'
 
 const TYPES:MessageKey[]=[
  'notifications.type.privateMessages','notifications.type.groupMessages','notifications.type.studyRooms',
