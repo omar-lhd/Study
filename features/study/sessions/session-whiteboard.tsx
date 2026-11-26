@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ChevronLeft, ChevronRight, Circle, Eraser, Grid3X3, Minus, Pen, Plus, RotateCcw, Square, Type, X } from 'lucide-react'
+import type { PointerEvent } from 'react'
+import { ChevronLeft, ChevronRight, Eraser, Grid3X3, Pen, RotateCcw, Square, Type, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -142,7 +143,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     return()=>window.clearTimeout(timer)
   },[ready,sessionId,pageIndex,settings,userId])
 
-  const pointFromEvent=(event:React.PointerEvent<HTMLCanvasElement>):Point=>{
+  const pointFromEvent=(event:PointerEvent<HTMLCanvasElement>):Point=>{
     const canvas=event.currentTarget
     const rect=canvas.getBoundingClientRect()
     return {x:(event.clientX-rect.left)*canvas.width/rect.width,y:(event.clientY-rect.top)*canvas.height/rect.height}
@@ -156,7 +157,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     }catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_SAVE_FAILED')}
   }
 
-  const onPointerDown=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+  const onPointerDown=(event:PointerEvent<HTMLCanvasElement>)=>{
     if(loading||error)return
     const point=pointFromEvent(event)
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -171,7 +172,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     else strokeRef.current={points:[point],color,width:lineWidth,eraser:tool==='eraser'}
   }
 
-  const onPointerMove=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+  const onPointerMove=(event:PointerEvent<HTMLCanvasElement>)=>{
     if(!drawingRef.current)return
     const point=pointFromEvent(event)
     if(strokeRef.current){
