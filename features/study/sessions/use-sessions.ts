@@ -81,9 +81,9 @@ export async function listVisibleSharedStudySessions(groupId:string) {
   return cloudRest<Array<{
     id:string;title:string;subject:string|null;subject_color:string|null;session_type:SharedSessionSnapshot['session_type'];
     status:SharedSessionSnapshot['status'];access_type:SharedSessionSnapshot['access_type'];starts_at:string|null;
-    started_at:string|null;planned_duration_seconds:number;created_at:string;host_id:string
+    started_at:string|null;ended_at:string|null;planned_duration_seconds:number;created_at:string;host_id:string;created_by:string;group_id:string
   }>>(
-    `study_sessions?group_id=eq.${encodeURIComponent(groupId)}&select=id,title,subject,subject_color,session_type,status,access_type,starts_at,started_at,planned_duration_seconds,created_at,host_id&order=starts_at.asc.nullslast,created_at.desc`
+    `study_sessions?group_id=eq.${encodeURIComponent(groupId)}&access_type=eq.group&select=id,title,subject,subject_color,session_type,status,access_type,starts_at,started_at,ended_at,planned_duration_seconds,created_at,host_id,created_by,group_id&order=starts_at.asc.nullslast,created_at.desc`
   )
 }
 
