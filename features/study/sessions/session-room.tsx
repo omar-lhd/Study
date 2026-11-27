@@ -183,7 +183,7 @@ export function SessionRoom({id}:{id:string}){
    oscillator.connect(gain);gain.connect(context.destination)
    oscillator.start();oscillator.stop(context.currentTime+.14)
   }catch{/* audio output is optional */}
- },[]
+ },[])
  const uploadChatImage=async(file:File)=>{
   if(!userId)return
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){toast.error('نوع أو حجم الصورة غير مسموح');return}
