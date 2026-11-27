@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Check, ChevronDown, Headphones, Grid3X3, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X, Coffee, Toilet, MessagesSquare } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronDown, Headphones, Grid3X3, History as HistoryIcon, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X, Coffee, Toilet, MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -218,6 +218,7 @@ export function SessionRoom({id}:{id:string}){
   {panelOpen&&panel==='board'?<SessionWhiteboard sessionId={id} userId={userId} onClose={()=>setPanelOpen(false)}/>:null}
   {unreadRequests.map(req=><Card key={req.id} className="fixed bottom-24 end-3 z-50 max-h-28 w-[min(90vw,24rem)] overflow-y-auto border-cyan-400/30 bg-[#111333] p-3"><p className="text-sm font-semibold">{t('sessions.phase2.room.seatRequestPending')}</p><div className="mt-2 flex gap-2"><Button onClick={()=>respondSeat(req,true)}>{t('sessions.phase2.room.accept')}</Button><Button variant="outline" onClick={()=>respondSeat(req,false)}>{t('sessions.phase2.room.reject')}</Button></div></Card>)}
   <button type="button" onClick={()=>{setPanel('chat');setPanelOpen(true)}} className="fixed bottom-28 end-4 z-[68] grid size-12 place-items-center rounded-full border border-cyan-300/40 bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-[0_0_28px_rgba(75,113,255,.5)]" aria-label="فتح محادثة الجلسة"><MessageCircle className="size-5"/></button>
+  <div className="fixed inset-x-3 bottom-24 top-24 z-[69] hidden" aria-hidden="true" />
   <div className="study-room-controls sticky bottom-0 z-40 grid shrink-0 grid-cols-[3.25rem_3.25rem_minmax(0,1fr)] items-center gap-2 rounded-[2rem] border border-violet-400/20 bg-[#0b0d27]/95 p-2 shadow-[0_-8px_32px_rgba(12,9,45,.35)] backdrop-blur-2xl" style={{paddingBottom:'max(.5rem,env(safe-area-inset-bottom))'}}>
     <button type="button" disabled={!currentUserSeat} onClick={()=>setMicEnabled(value=>!value)} className={cn('grid size-12 place-items-center rounded-full border border-violet-400/30 text-white shadow-[0_0_22px_rgba(91,70,255,.25)] disabled:opacity-35',micEnabled?'bg-gradient-to-br from-violet-600 to-blue-600':'bg-[#171a3b]')} aria-label={micEnabled?'Mute microphone':'Enable microphone'} aria-pressed={micEnabled}>{micEnabled?<Mic className="size-5"/>:<MicOff className="size-5"/>}</button>
     <button type="button" onClick={()=>setMuteAll(value=>!value)} className={cn('grid size-12 place-items-center rounded-full border border-white/10',muteAll?'bg-violet-600/30 text-violet-200':'bg-[#171a3b] text-slate-200')} aria-label={muteAll?'Unmute session audio':'Mute session audio'} aria-pressed={muteAll}>{muteAll?<VolumeX className="size-5"/>:<Volume2 className="size-5"/>}</button>
