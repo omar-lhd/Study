@@ -200,7 +200,7 @@ export function SessionRoom({id}:{id:string}){
  const signChatImages=useCallback(async(rows:ChatMessage[])=>{
   const now=Date.now()
   const images=rows.filter(row=>row.message_type==='image'&&row.storage_path&&
-   (!chatImageUrlMapRef.current[row.id]||chatImageUrlMapRef.current[row.id].expiresAt<now+60_000)&&
+   (!chatImageUrlMapRef.current[row.id]||(chatImageUrlMapRef.current[row.id]?.expiresAt??0)<now+60_000)&&
    !signingImagesRef.current.has(row.id))
   if(!images.length)return
   for(const image of images)signingImagesRef.current.add(image.id)
