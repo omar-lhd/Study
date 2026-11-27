@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarClock, History, Info, Plus, Timer, TriangleAlert, Users, DoorOpen, UsersRound, Wifi, WifiOff } from 'lucide-react'
+import { CalendarClock, History, Info, Plus, Timer, TriangleAlert, Users, DoorOpen, UsersRound, Wifi, WifiOff, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/headers'
@@ -19,7 +19,7 @@ type Row = {
  id:string;title:string;subject:string|null;subject_color:string|null;
  session_type:'private'|'group'|'open_room';status:'scheduled'|'active'|'paused'|'completed'|'canceled';
  access_type:'creator_only'|'invited'|'group';starts_at:string|null;started_at:string|null;ended_at:string|null;
- planned_duration_seconds:number;created_at:string;host_id:string;created_by:string;group_id:string;
+ planned_duration_seconds:number;created_at:string;host_id:string;created_by:string;group_id:string;participant_count?:number;
 }
 const TABS: {value:Group;icon:React.ReactNode}[]=[
  {value:'active',icon:<Timer/>},{value:'upcoming',icon:<CalendarClock/>},{value:'completed',icon:<History/>}
@@ -51,6 +51,7 @@ function SessionCard({row,onOpen,now}:{row:Row;onOpen:(id:string)=>void;now:numb
    <div className="grid size-10 shrink-0 place-items-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"><UsersRound className="size-5"/></div>
   </div>
   <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+   {typeof row.participant_count==='number'?<span className="inline-flex items-center gap-1.5"><Users className="size-3.5"/>{row.participant_count} حاضر</span>:null}
    <span className="inline-flex items-center gap-1.5"><Timer className="size-3.5"/>{Math.round(planned/60)} min</span>
    {starts?<span className="inline-flex items-center gap-1.5"><CalendarClock className="size-3.5"/>{format.dateTime(starts.getTime())}</span>:null}
    {active?<span className="font-semibold tabular-nums text-foreground" dir="ltr">{clock(remaining)} {t('sessions.meta.remaining',{time:''})}</span>:null}
@@ -92,7 +93,7 @@ export function SessionsOverview(){
  const grouped=groups[tab]
  const trigger=<Button onClick={()=>{}}><Plus className="size-4"/>{t('sessions.create')}</Button>
  return <div className="space-y-5">
-  <PageHeader title={t('study.title')} description={t('study.description')} actions={<SharedSessionCreateDialog trigger={trigger}/>}/>
+  <PageHeader title={t('study.title')} description={t('study.description')} actions={<div className="flex items-center gap-2"><Button variant="outline" size="icon" aria-label="تحديث الجلسات" onClick={()=>setRefresh(v=>v+1)}><RefreshCw className={cn('size-4',loading&&'animate-spin')}/></Button><SharedSessionCreateDialog trigger={trigger}/></div>}/>
   <Card variant="panel" className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-card/70 to-cyan-500/5">
    <div className="flex flex-wrap items-center justify-between gap-3">
     <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-primary/15 text-primary"><Users className="size-5"/></span><div><p className="font-semibold">{t('sessions.phase2.live')}</p><p className="text-xs text-muted-foreground">{communityCount} · {t('sessions.phase2.community')}</p></div></div>
