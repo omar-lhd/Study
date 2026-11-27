@@ -364,9 +364,49 @@ export async function addSharedSessionNote(sessionId:string,authorId:string,body
 }
 
 export async function listSharedSessionChat(sessionId:string) {
-  return cloudRest<Array<{id:string;sender_id:string;content:string;client_event_id:string;created_at:string}>>(
+  return cloudRest<Array<{id:string;sender_id:string;content:string;client_event_id:string;created_at:string;message_type?:'text'|'image';storage_path?:string|null;doodle_path?:string|null}>>(
     `study_session_chat?session_id=eq.${encodeURIComponent(sessionId)}&select=*&order=created_at.asc&limit=200`
   )
+}
+
+export async function sendSharedSessionImage(sessionId:string,senderId:string,file:File,clientEventId:string){
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('UNSUPPORTED_IMAGE_TYPE')
+  if(file.size>12*1024*1024)throw new Error('SESSION_IMAGE_TOO_LARGE')
+  const session=await getValidCloudSession()
+  const base=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,'')
+  const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if(!base||!key)throw new Error('SUPABASE_ENV_NOT_CONFIGURED')
+  const ext=file.type==='image/jpeg'?'jpg':file.type==='image/png'?'png':'webp'
+  const path=`${sessionId}/${senderId}/${crypto.randomUUID()}.${ext}`
+  const upload=await fetch(base+'/storage/v1/object/study-session-chat/'+path.split('/').map(encodeURIComponent).join('/'),{
+    method:'POST',headers:{apikey:key,Authorization:`Bearer ${session.access_token}`,'Content-Type':file.type,'x-upsert':'false'},body:file
+  })
+  if(!upload.ok)throw new Error('SESSION_IMAGE_UPLOAD_FAILED')
+  const inserted=await cloudRest<unknown>('study_session_chat',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({session_id:sessionId,sender_id:senderId,content:'',client_event_id:clientEventId,message_type:'image',storage_path:path})
+  })
+  return inserted
+}
+
+export async function getSharedSessionImageUrl(path:string,expiresIn=900){
+  const session=await getValidCloudSession()
+  const base=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,'')
+  const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if(!base||!key)throw new Error('SUPABASE_ENV_NOT_CONFIGURED')
+  const response=await fetch(base+'/storage/v1/object/sign/study-session-chat/'+path.split('/').map(encodeURIComponent).join('/'),{
+    method:'POST',headers:{apikey:key,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({expiresIn})
+  })
+  const result=await response.json() as {signedURL?:string}
+  if(!response.ok||!result.signedURL)throw new Error('SESSION_IMAGE_URL_FAILED')
+  return result.signedURL.startsWith('http')?result.signedURL:base+result.signedURL
+}
+
+export async function saveSharedSessionImageDoodle(sessionId:string,messageId:string,doodlePath:string){
+  return cloudRest('study_session_chat?id=eq.'+encodeURIComponent(messageId),{
+    method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({doodle_path:doodlePath})
+  })
 }
 
 export async function sendSharedSessionChat(sessionId:string,senderId:string,content:string,clientEventId:string) {
