@@ -157,7 +157,7 @@ export function SessionRoom({id}:{id:string}){
  const isFocus=mode==='focus'
  return <>
   <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onStatus={handleRtcStatus}/>
-  <main className="study-session-room mx-auto flex h-[100dvh] min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden px-3 pt-3 pb-2 sm:gap-3">
+  <main className="study-session-room mx-auto flex h-[100dvh] min-h-0 w-full max-w-none flex-col gap-2 overflow-y-auto px-3 pt-3 pb-2 sm:gap-3">
   <div className="flex items-center justify-between gap-3">
    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
    <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -184,11 +184,11 @@ export function SessionRoom({id}:{id:string}){
     const seat=seats.find(item=>item.seat_number===index+1)
     const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
     return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id===userId)setMicEnabled(v=>!v);else void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#10122d]/70 py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
-     <span className={cn('relative grid size-8 place-items-center rounded-full border-2 p-0.5',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
+     <span className={cn('relative grid size-[4.25rem] place-items-center rounded-full border-2 p-1 shadow-[0_0_24px_rgba(65,110,255,.22)] sm:size-24',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
       {person?.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full object-cover"/>:<span className="grid size-full place-items-center rounded-full bg-[#101334] text-violet-200">{person?person.display_name.slice(0,1):<Plus className="size-4"/>}</span>}
       {person?<span className="absolute -bottom-0.5 -end-0.5 size-2.5 rounded-full border border-[#090b25] bg-emerald-400"/>:null}{person?.focus_mode?<Target className="absolute -top-1 -end-1 size-3 rounded-full bg-[#090b25] text-cyan-300"/>:null}
      </span>
-     <span className="max-w-full truncate text-[10px] font-medium">{person?.display_name||'+'}</span>
+     <span className="max-w-full truncate text-xs font-medium">{person?.display_name||'+'}</span>
     </button>
    })}
   </section>
