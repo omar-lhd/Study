@@ -119,7 +119,7 @@ export function SessionRoom({id}:{id:string}){
    listSharedSessionChat(id),listSharedSessionSeatRequests(id),getSharedSessionSeatAssignments(id),
    listMyPendingSharedSessionInvitations(),getCloudCurrentUser(),listSharedSessionPauseRequests(id),listSharedSessionTimeChangeRequests(id),listSharedSessionEvents(id)
   ])
-  setSnapshot(s);setParticipants(p);setGoals(g);setMessages(c);\n   void signChatImages(c)setSeatRequests(r);setSeats(ss);setInvitations(inv);setUserId(u);setPauseRequests(pauses);setTimeRequests(times);setEvents(ev)
+  setSnapshot(s);setParticipants(p);setGoals(g);setMessages(c);setSeatRequests(r);setSeats(ss);setInvitations(inv);setUserId(u);setPauseRequests(pauses);setTimeRequests(times);setEvents(ev)
   setConnected(true);setError(null)
  },[id])
  useEffect(()=>{
