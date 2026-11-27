@@ -138,7 +138,9 @@ export function SessionRoom({id}:{id:string}){
  const [chatImageBusy,setChatImageBusy]=useState(false)
  const [viewingImage,setViewingImage]=useState<{messageId:string;path:string;url:string}|null>(null)
  const [imageDoodle,setImageDoodle]=useState(false)
- const [chatImageUrlMap,setChatImageUrlMap]=useState<Record<string,string>>({})
+ const [chatImageUrlMap,setChatImageUrlMap]=useState<Record<string,{url:string;expiresAt:number}>>({})
+ const chatImageUrlMapRef=useRef<Record<string,{url:string;expiresAt:number}>>({})
+ const signingImagesRef=useRef(new Set<string>())
  const [noteDraft,setNoteDraft]=useState('');const [mode,setMode]=useState<'focus'|'collaboration'>('collaboration')
  const [showRoster,setShowRoster]=useState(false)
  const [rosterOffset,setRosterOffset]=useState(0)
@@ -169,6 +171,19 @@ export function SessionRoom({id}:{id:string}){
  const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.server_now?Math.floor((now-new Date(snapshot.server_now).getTime())/1000):0)):0,[snapshot,now])
  const remaining=snapshot?Math.max(0,snapshot.planned_duration_seconds-elapsed):0
  const countdownSeconds=snapshot?.status==='paused'&&snapshot.resume_at?Math.max(0,Math.ceil((new Date(snapshot.resume_at).getTime()-now)/1000)):null
+ const playSessionTone=useCallback((frequency=700,volume=.055)=>{
+  const context=audioContextRef.current
+  if(!context||context.state!=='running')return
+  try{
+   const oscillator=context.createOscillator(),gain=context.createGain()
+   oscillator.type='sine';oscillator.frequency.setValueAtTime(frequency,context.currentTime)
+   gain.gain.setValueAtTime(.0001,context.currentTime)
+   gain.gain.exponentialRampToValueAtTime(volume,context.currentTime+.018)
+   gain.gain.exponentialRampToValueAtTime(.0001,context.currentTime+.13)
+   oscillator.connect(gain);gain.connect(context.destination)
+   oscillator.start();oscillator.stop(context.currentTime+.14)
+  }catch{/* audio output is optional */}
+ },[]
  const uploadChatImage=async(file:File)=>{
   if(!userId)return
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){toast.error('نوع أو حجم الصورة غير مسموح');return}
@@ -230,7 +245,7 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{
   if(!current||current.attendance_state!=='present')return
   const heartbeat=window.setInterval(()=>heartbeatSharedStudySession(id).then(()=>setConnected(true)).catch(()=>setConnected(false)),15000)
-  const sync=window.setInterval(()=>refresh().catch(()=>setConnected(false)),10000)
+  const sync=window.setInterval(()=>refresh().catch(()=>setConnected(false)),25000)
   const online=()=>{setConnected(true);joinSharedStudySession(id).then(()=>refresh()).catch(()=>setConnected(false))}
   const offline=()=>setConnected(false)
   window.addEventListener('online',online);window.addEventListener('offline',offline)
@@ -274,7 +289,20 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{if(timeRequests.length>0)setShowTimerAdjust(true)},[timeRequests.length])
  useEffect(()=>{if(current){setMode(current.focus_mode?'focus':'collaboration');setMuteAll(current.focus_mode)}},[current?.focus_mode])
  useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
- const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null);if(status==='error')setMicEnabled(false)},[])
+ const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);const denied=message?.includes('NotAllowedError')||message?.includes('PERMISSION_DENIED');setRtcError(status==='error'?(denied?'تم رفض إذن الميكروفون. اسمح للموقع باستخدام الميكروفون من إعدادات المتصفح ثم أعد المحاولة.':message??'AGORA_AUDIO_ERROR'):null);if(status==='error')setMicEnabled(false)},[])
+ const toggleMicrophone=async()=>{
+  if(micEnabled){setMicEnabled(false);return}
+  if(!navigator.mediaDevices?.getUserMedia){setRtcError('هذا المتصفح لا يدعم الوصول إلى الميكروفون.');return}
+  try{
+   const stream=await navigator.mediaDevices.getUserMedia({audio:true})
+   stream.getTracks().forEach(track=>track.stop())
+   setRtcError(null);setMicEnabled(true)
+  }catch(error){
+   const denied=error instanceof Error&&(error.name==='NotAllowedError'||error.name==='PermissionDeniedError')
+   setMicEnabled(false);setRtcStatus('error')
+   setRtcError(denied?'تم رفض إذن الميكروفون. افتح إعدادات الموقع في المتصفح واسمح بالميكروفون، ثم أعد المحاولة.':error instanceof Error?error.message:'تعذر تشغيل الميكروفون')
+  }
+ }
  const primeSessionAudio=useCallback(()=>{
   if(typeof window==='undefined')return
   const AudioContextConstructor=window.AudioContext
@@ -284,19 +312,7 @@ export function SessionRoom({id}:{id:string}){
    if(audioContextRef.current.state==='suspended')void audioContextRef.current.resume().catch(()=>{})
   }catch{/* optional audio */}
  },[])
- const playSessionTone=useCallback((frequency=700,volume=.055)=>{
-  const context=audioContextRef.current
-  if(!context||context.state!=='running')return
-  try{
-   const oscillator=context.createOscillator(),gain=context.createGain()
-   oscillator.type='sine';oscillator.frequency.setValueAtTime(frequency,context.currentTime)
-   gain.gain.setValueAtTime(.0001,context.currentTime)
-   gain.gain.exponentialRampToValueAtTime(volume,context.currentTime+.018)
-   gain.gain.exponentialRampToValueAtTime(.0001,context.currentTime+.13)
-   oscillator.connect(gain);gain.connect(context.destination)
-   oscillator.start();oscillator.stop(context.currentTime+.14)
-  }catch{/* audio output is optional */}
- },[])
+
  const handleVolumes=useCallback((levels:Record<string,number>)=>setVoiceLevels(levels),[])
  const changePersonalStatus=async(status:PersonalSessionStatus)=>{try{await setMySessionPersonalStatus(id,status);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PERSONAL_STATUS_FAILED')}}
  function eventLabel(event:SessionEvent){
@@ -445,10 +461,10 @@ export function SessionRoom({id}:{id:string}){
   </div>:null}
   {panelOpen&&panel==='board'?<SessionWhiteboard sessionId={id} userId={userId} onClose={()=>setPanelOpen(false)}/>:null}
   {unreadRequests.map(req=><Card key={req.id} className="fixed bottom-24 end-3 z-50 max-h-28 w-[min(90vw,24rem)] overflow-y-auto border-cyan-400/30 bg-[#111333] p-3"><p className="text-sm font-semibold">{t('sessions.phase2.room.seatRequestPending')}</p><div className="mt-2 flex gap-2"><Button onClick={()=>respondSeat(req,true)}>{t('sessions.phase2.room.accept')}</Button><Button variant="outline" onClick={()=>respondSeat(req,false)}>{t('sessions.phase2.room.reject')}</Button></div></Card>)}
-  <button type="button" onClick={()=>{setPanel('chat');setPanelOpen(true)}} className="fixed bottom-28 end-4 z-[68] grid size-12 place-items-center rounded-full border border-cyan-300/40 bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-[0_0_28px_rgba(75,113,255,.5)]" aria-label="فتح محادثة الجلسة"><MessageCircle className="size-5"/></button>
+  {!panelOpen?<button type="button" onClick={()=>{setPanel('chat');setPanelOpen(true)}} className="fixed bottom-28 end-4 z-[68] grid size-12 place-items-center rounded-full border border-cyan-300/40 bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-[0_0_28px_rgba(75,113,255,.5)]" aria-label="فتح محادثة الجلسة"><MessageCircle className="size-5"/></button>:null}
   <div className="fixed inset-x-3 bottom-24 top-24 z-[69] hidden" aria-hidden="true" />
   <div className="study-room-controls sticky bottom-0 z-40 grid shrink-0 grid-cols-[3.25rem_3.25rem_minmax(0,1fr)] items-center gap-2 rounded-[2rem] border border-violet-400/20 bg-[#0b0d27]/95 p-2 shadow-[0_-8px_32px_rgba(12,9,45,.35)] backdrop-blur-2xl" style={{paddingBottom:'max(.5rem,env(safe-area-inset-bottom))'}}>
-    <button type="button" disabled={!currentUserSeat} onClick={()=>setMicEnabled(value=>!value)} className={cn('grid size-12 place-items-center rounded-full border border-violet-400/30 text-white shadow-[0_0_22px_rgba(91,70,255,.25)] disabled:opacity-35',micEnabled?'bg-gradient-to-br from-violet-600 to-blue-600':'bg-[#171a3b]')} aria-label={micEnabled?'Mute microphone':'Enable microphone'} aria-pressed={micEnabled}>{micEnabled?<Mic className="size-5"/>:<MicOff className="size-5"/>}</button>
+    <button type="button" disabled={!currentUserSeat} onClick={()=>void toggleMicrophone()} className={cn('grid size-12 place-items-center rounded-full border border-violet-400/30 text-white shadow-[0_0_22px_rgba(91,70,255,.25)] disabled:opacity-35',micEnabled?'bg-gradient-to-br from-violet-600 to-blue-600':'bg-[#171a3b]')} aria-label={micEnabled?'Mute microphone':'Enable microphone'} aria-pressed={micEnabled}>{micEnabled?<Mic className="size-5"/>:<MicOff className="size-5"/>}</button>
     <button type="button" onClick={()=>setMuteAll(value=>!value)} className={cn('grid size-12 place-items-center rounded-full border border-white/10',muteAll?'bg-violet-600/30 text-violet-200':'bg-[#171a3b] text-slate-200')} aria-label={muteAll?'Unmute session audio':'Mute session audio'} aria-pressed={muteAll}>{muteAll?<VolumeX className="size-5"/>:<Volume2 className="size-5"/>}</button>
     <button type="button" onClick={()=>void onLeave()} className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-rose-600 via-rose-600 to-pink-600 px-3 text-sm font-semibold text-white shadow-[0_8px_28px_rgba(244,63,94,.25)]"><LogOut className="size-5 shrink-0"/><span className="truncate">{t('sessions.phase2.room.leave')}</span></button>
    </div>
