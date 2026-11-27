@@ -334,3 +334,28 @@
   .study-chat-thread-open .study-chat-notification-panel,
   .study-chat-thread-open .study-chat-profile-form { display: none !important; }
 }
+
+
+/* Study session room is an immersive workspace; hide the app chrome while it is open. */
+body:has(.study-session-room) aside,
+body:has(.study-session-room) [data-app-topbar],
+body:has(.study-session-room) [data-app-bottom-nav] {
+  display: none !important;
+}
+body:has(.study-session-room) [data-app-main] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 60 !important;
+  width: 100vw !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.study-session-room {
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  padding-bottom: max(.5rem, env(safe-area-inset-bottom)) !important;
+}
