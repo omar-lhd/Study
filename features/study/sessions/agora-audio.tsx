@@ -100,16 +100,17 @@ export function AgoraAudio({
         sdkRef.current=sdk
         const client=sdk.createClient({mode:'rtc',codec:'vp8'})
         clientRef.current=client
-        client.on('user-published',async(...args)=>{
-          const user=args[0] as AgoraRemoteUser
-          const mediaType=args[1]
-          if(mediaType!=='audio')return
+        const subscribeAudio=async(user:AgoraRemoteUser)=>{
           try{
             await client.subscribe(user,'audio')
             if(disposed)return
             user.audioTrack?.play()
             applyRemoteVolume(user)
           }catch(error){onStatus?.('error',error instanceof Error?error.message:'AGORA_SUBSCRIBE_FAILED')}
+        }
+        client.on('user-published',(...args)=>{
+          const user=args[0] as AgoraRemoteUser
+          if(args[1]==='audio')void subscribeAudio(user)
         })
         client.on('user-unpublished',(...args)=>{
           const user=args[0] as AgoraRemoteUser
@@ -134,6 +135,9 @@ export function AgoraAudio({
         if(disposed){await client.leave();return}
         joinedRef.current=true
         setJoined(true)
+        // A participant may have published before this client finished joining.
+        // Agora's user-published event is not guaranteed to replay for existing users.
+        await Promise.all(client.remoteUsers.filter(user=>user.audioTrack).map(user=>subscribeAudio(user)))
         onStatus?.('connected')
       }catch(error){
         if(!disposed){setJoined(false);onStatus?.('error',error instanceof Error?error.message:'AGORA_CONNECT_FAILED')}
