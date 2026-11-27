@@ -61,7 +61,7 @@ export function SessionRoom({id}:{id:string}){
  const [timeDelta,setTimeDelta]=useState(600)
  const [panel,setPanel]=useState<'goals'|'chat'|'notes'|'board'>('goals')
  const now=useNow(1000,snapshot?.status==='active'||pauseRequests.length>0||timeRequests.length>0)
- const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-new Date(snapshot.running_since).getTime())/1000):0)):0,[snapshot,now])
+ const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.server_now?Math.floor((now-new Date(snapshot.server_now).getTime())/1000):0)):0,[snapshot,now])
  const remaining=snapshot?Math.max(0,snapshot.planned_duration_seconds-elapsed):0
  const current=participants.find(p=>p.user_id===userId)
  const seated=useMemo(()=>new Set(seats.map(s=>s.participant.user_id)),[seats])
