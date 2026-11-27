@@ -187,7 +187,8 @@ export function SessionRoom({id}:{id:string}){
     </div>
    </div>
   </section>
-  <section className="study-room-seats grid min-h-0 shrink-0 grid-cols-3 gap-x-2 gap-y-1 px-1" aria-label="Six microphone seats">
+  
+<section className="study-room-seats grid min-h-0 shrink-0 grid-cols-3 gap-x-2 gap-y-1 px-1" aria-label="Six microphone seats">
    {Array.from({length:6},(_,index)=>{
     const seat=seats.find(item=>item.seat_number===index+1)
     const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
@@ -205,19 +206,8 @@ export function SessionRoom({id}:{id:string}){
     </div>
    </div>
   </section>
-  <section className="study-room-seats grid min-h-0 shrink-0 grid-cols-3 gap-x-2 gap-y-1 px-1" aria-label="Six microphone seats">
-   {Array.from({length:6},(_,index)=>{
-    const seat=seats.find(item=>item.seat_number===index+1)
-    const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
-    return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id===userId)setMicEnabled(v=>!v);else void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-transparent bg-transparent py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
-     <span className={cn('relative grid size-[5.5rem] place-items-center rounded-full border-2 p-1 shadow-[0_0_24px_rgba(65,110,255,.22)] sm:size-24',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
-      {person?.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full object-cover"/>:<span className="grid size-full place-items-center rounded-full bg-[#101334] text-violet-200">{person?person.display_name.slice(0,1):<Plus className="size-4"/>}</span>}
-      {person?<span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full border-2 border-[#090b25] bg-emerald-500 text-white shadow-lg">{(volumes[person.user_id]??0)>0.035?<span className="flex h-3 items-end gap-[2px]"><i className="w-[2px] animate-pulse rounded-full bg-white" style={{height:Math.max(3,(volumes[person.user_id]??0)*13)}}/><i className="w-[2px] animate-pulse rounded-full bg-white" style={{height:Math.max(4,(volumes[person.user_id]??0)*16),animationDelay:'90ms'}}/><i className="w-[2px] animate-pulse rounded-full bg-white" style={{height:Math.max(3,(volumes[person.user_id]??0)*11),animationDelay:'180ms'}}/></span>:<Mic className="size-3.5"/>}</span>:null}{person?.focus_mode?<Target className="absolute -top-1 -end-1 size-3 rounded-full bg-[#090b25] text-cyan-300"/>:null}
-     </span>
-     <span className="max-w-full truncate text-xs font-medium">{person?.display_name||'+'}</span>
-    </button>
-   })}
-  </section>
+
+
   <Card className="study-room-listeners shrink-0 border-violet-400/20 bg-[#0e1030]/80 p-2 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
    <button type="button" onClick={()=>setShowRoster(true)} className="flex w-full items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-sm font-medium">
     <span className="flex min-w-0 items-center gap-2"><Users className="size-5 shrink-0 text-violet-300"/><span className="truncate">{t('sessions.phase2.room.listeners')} · {listeners.length}</span><span className="text-xs text-muted-foreground">({snapshot.participant_count})</span></span>
