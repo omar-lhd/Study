@@ -60,7 +60,6 @@ export function SessionRoom({id}:{id:string}){
  const [mutedUserIds,setMutedUserIds]=useState<string[]>([])
  const [volumes,setVolumes]=useState<Record<string,number>>({})
  const [voiceLevels,setVoiceLevels]=useState<Record<string,number>>({})
- const [voiceLevels,setVoiceLevels]=useState<Record<string,number>>({})
  const [rtcStatus,setRtcStatus]=useState<'connecting'|'connected'|'disconnected'|'error'>('connecting')
  const [rtcError,setRtcError]=useState<string|null>(null)
  const [timeDelta,setTimeDelta]=useState(600)
