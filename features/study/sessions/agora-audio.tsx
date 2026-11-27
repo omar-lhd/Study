@@ -20,6 +20,7 @@ type AgoraClient = {
   publish:(track:AgoraTrack)=>Promise<void>
   unpublish:(track:AgoraTrack)=>Promise<void>
   renewToken:(token:string)=>Promise<void>
+  enableAudioVolumeIndicator?:(interval:number)=>void
 }
 type AgoraSdk = {
   createClient:(config:{mode:'rtc';codec:'vp8'})=>AgoraClient
@@ -59,7 +60,7 @@ function agoraUid(uuid:string):number{
 }
 
 export function AgoraAudio({
-  sessionId,userId,participants,audioAvailable,canPublish,micEnabled,mutedAll,mutedUserIds,volumes,onStatus
+  sessionId,userId,participants,audioAvailable,canPublish,micEnabled,mutedAll,mutedUserIds,volumes,onVolumes,onStatus
 }:{
   sessionId:string
   userId:string|null
@@ -70,6 +71,7 @@ export function AgoraAudio({
   mutedAll:boolean
   mutedUserIds:string[]
   volumes:Record<string,number>
+  onVolumes?:(levels:Record<string,number>)=>void
   onStatus?:(status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>void
 }){
   const [joined,setJoined]=useState(false)
@@ -83,12 +85,14 @@ export function AgoraAudio({
   const mutedUsersRef=useRef(mutedUserIds)
   const volumesRef=useRef(volumes)
   const userIdRef=useRef(userId)
+  const onVolumesRef=useRef(onVolumes)
   const publishDesiredRef=useRef(false)
   participantsRef.current=participants
   muteAllRef.current=mutedAll
   mutedUsersRef.current=mutedUserIds
   volumesRef.current=volumes
   userIdRef.current=userId
+  onVolumesRef.current=onVolumes
   publishDesiredRef.current=canPublish&&micEnabled
 
   useEffect(()=>{
@@ -110,6 +114,20 @@ export function AgoraAudio({
             applyRemoteVolume(user)
           }catch(error){onStatus?.('error',error instanceof Error?error.message:'AGORA_SUBSCRIBE_FAILED')}
         }
+        client.enableAudioVolumeIndicator?.(200)
+        client.on('volume-indicator',(...args)=>{
+          const users=(args[0]??[]) as Array<{uid:string|number;level:number}>
+          const levels:Record<string,number>={}
+          for(const user of users){
+            const uid=Number(user.uid)
+            const participant=participantsRef.current.find(person=>agoraUid(person.user_id)===uid)
+            if(participant){
+              const level=Math.max(0,Math.min(1,(Number(user.level)||0)/100))
+              if(level>=0.035)levels[participant.user_id]=level
+            }
+          }
+          onVolumesRef.current?.(levels)
+        })
         client.on('user-published',(...args)=>{
           const user=args[0] as AgoraRemoteUser
           if(args[1]==='audio')void subscribeAudio(user)
@@ -148,6 +166,7 @@ export function AgoraAudio({
     return()=>{
       disposed=true
       joinedRef.current=false
+      onVolumesRef.current?.({})
       setJoined(false)
       const client=clientRef.current
       const track=localTrackRef.current
