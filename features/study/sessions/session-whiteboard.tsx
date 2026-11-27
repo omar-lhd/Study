@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
-import { ChevronLeft, ChevronRight, Eraser, Grid3X3, Pen, RotateCcw, Square, Type, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eraser, Grid3X3, Pen, RotateCcw, Square, Type, X, ZoomIn, ZoomOut, Maximize2, MousePointer2, Save, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
-  addSharedWhiteboardElement,deleteSharedWhiteboardElement,getSharedWhiteboardPage,
+  addSharedWhiteboardElement,deleteSharedWhiteboardElement,updateSharedWhiteboardElement,getSharedWhiteboardPage,
   listSharedWhiteboardElements,saveSharedWhiteboardPage,subscribeSharedSessionRealtime,
   setMyWhiteboardPresence,type WhiteboardElement
 } from './use-sessions'
@@ -22,6 +22,30 @@ type WhiteboardSettings={
 }
 type Point={x:number;y:number}
 type PreviewElement={element_type:WhiteboardElement['element_type'];data:Record<string,unknown>}
+type Bounds={x:number;y:number;w:number;h:number}
+function elementBounds(element:WhiteboardElement|PreviewElement):Bounds{
+  const d=element.data
+  if(element.element_type==='stroke'){
+    const points=Array.isArray(d.points)?d.points as Point[]:[]
+    if(!points.length)return{x:0,y:0,w:0,h:0}
+    const xs=points.map(p=>p.x),ys=points.map(p=>p.y)
+    const pad=Math.max(12,Number(d.width)||4)
+    const x=Math.min(...xs)-pad,y=Math.min(...ys)-pad
+    return{x,y,w:Math.max(...xs)-Math.min(...xs)+pad*2,h:Math.max(...ys)-Math.min(...ys)+pad*2}
+  }
+  const x=Number(d.x)||0,y=Number(d.y)||0
+  const w=Number(d.w)||(element.element_type==='text'?Math.max(50,String(d.text||'').length*(Number(d.fontSize)||28)*.62):0)
+  const h=Number(d.h)||(element.element_type==='text'?(Number(d.fontSize)||28)*1.4:0)
+  return{x:x-8,y:y-8,w:Math.max(24,w+16),h:Math.max(24,h+16)}
+}
+function hitElement(element:WhiteboardElement,point:Point){
+  const b=elementBounds(element)
+  return point.x>=b.x-10&&point.x<=b.x+b.w+10&&point.y>=b.y-10&&point.y<=b.y+b.h+10
+}
+function translateData(data:Record<string,unknown>,dx:number,dy:number){
+  if(Array.isArray(data.points))return{...data,points:(data.points as Point[]).map(point=>({x:point.x+dx,y:point.y+dy}))}
+  return{...data,x:(Number(data.x)||0)+dx,y:(Number(data.y)||0)+dy}
+}
 const DEFAULT_SETTINGS:WhiteboardSettings={width:1200,height:800,background:'#ffffff',grid:'lines',gridColor:'#e5e7eb',orientation:'landscape'}
 
 function drawElement(ctx:CanvasRenderingContext2D,element:PreviewElement){
@@ -93,7 +117,9 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   const [settings,setSettings]=useState<WhiteboardSettings>(DEFAULT_SETTINGS)
   const [elements,setElements]=useState<WhiteboardElement[]>([])
   const [pageIndex,setPageIndex]=useState(0)
-  const [tool,setTool]=useState<'pen'|'eraser'|'text'|'shape'>('pen')
+  const [tool,setTool]=useState<'select'|'pen'|'eraser'|'text'|'shape'>('pen')
+  const [selectedElementId,setSelectedElementId]=useState<string|null>(null)
+  const [selectedData,setSelectedData]=useState<Record<string,unknown>|null>(null)
   const [shape,setShape]=useState<'rect'|'circle'|'line'>('rect')
   const [color,setColor]=useState('#5b4bff')
   const [lineWidth,setLineWidth]=useState(5)
@@ -109,6 +135,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   const strokeRef=useRef<{points:Point[];color:string;width:number;eraser:boolean}|null>(null)
   const shapeRef=useRef<{start:Point;end:Point;shape:'rect'|'circle'|'line'}|null>(null)
   const lastPointRef=useRef<Point|null>(null)
+  const selectionDragRef=useRef<{id:string;start:Point;original:Record<string,unknown>}|null>(null)
 
   const refreshBoard=useCallback(async()=>{
     const [page,rows]=await Promise.all([getSharedWhiteboardPage(sessionId,pageIndex),listSharedWhiteboardElements(sessionId,pageIndex)])
@@ -137,8 +164,11 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   useEffect(()=>{
     const canvas=canvasRef.current
     if(!canvas)return
-    renderBoard(canvas,settings,elements)
-  },[settings,elements])
+    const selected=elements.find(element=>element.id===selectedElementId)
+    if(selected&&selectedData){
+      renderBoard(canvas,settings,elements.filter(element=>element.id!==selected.id),{element_type:selected.element_type,data:selectedData})
+    }else renderBoard(canvas,settings,elements)
+  },[settings,elements,selectedElementId,selectedData])
 
   useEffect(()=>{
     const viewport=viewportRef.current
@@ -186,6 +216,14 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     if(loading||error)return
     const point=pointFromEvent(event)
     event.currentTarget.setPointerCapture(event.pointerId)
+    if(tool==='select'){
+      const target=[...elements].reverse().find(element=>hitElement(element,point))
+      setSelectedElementId(target?.id??null)
+      setSelectedData(target?{...target.data}:null)
+      if(target){drawingRef.current=true;selectionDragRef.current={id:target.id,start:point,original:{...target.data}}}
+      return
+    }
+    setSelectedElementId(null);setSelectedData(null)
     if(tool==='text'){
       if(!textDraft.trim())return
       void saveElement('text',{x:point.x,y:point.y,text:textDraft.trim(),color,fontSize})
@@ -200,6 +238,15 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   const onPointerMove=(event:PointerEvent<HTMLCanvasElement>)=>{
     if(!drawingRef.current)return
     const point=pointFromEvent(event)
+    const selection=selectionDragRef.current
+    if(selection){
+      const dx=point.x-selection.start.x,dy=point.y-selection.start.y
+      const data=translateData(selection.original,dx,dy)
+      setSelectedData(data)
+      const selected=elements.find(element=>element.id===selection.id)
+      if(selected)renderBoard(event.currentTarget,settings,elements.filter(element=>element.id!==selected.id),{element_type:selected.element_type,data})
+      return
+    }
     if(strokeRef.current){
       const previous=lastPointRef.current
       strokeRef.current.points.push(point)
@@ -224,6 +271,18 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   const onPointerUp=async()=>{
     if(!drawingRef.current)return
     drawingRef.current=false
+    const selection=selectionDragRef.current
+    if(selection){
+      selectionDragRef.current=null
+      const data=selectedData
+      if(data){
+        try{
+          await updateSharedWhiteboardElement(selection.id,data)
+          setElements(current=>current.map(element=>element.id===selection.id?{...element,data}:element))
+        }catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_UPDATE_FAILED')}
+      }
+      return
+    }
     if(strokeRef.current){
       const stroke=strokeRef.current
       strokeRef.current=null
@@ -257,6 +316,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     </header>
     <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#0b0d27] px-3 py-2">
       <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1">
+        <button type="button" onClick={()=>setTool('select')} className={cn('grid size-9 place-items-center rounded-lg',tool==='select'?'bg-violet-600 text-white':'text-slate-300')} aria-label="Select and move"><MousePointer2 className="size-4"/></button>
         <button type="button" onClick={()=>setTool('pen')} className={cn('grid size-9 place-items-center rounded-lg',tool==='pen'?'bg-violet-600 text-white':'text-slate-300')} aria-label="Pen"><Pen className="size-4"/></button>
         <button type="button" onClick={()=>setTool('eraser')} className={cn('grid size-9 place-items-center rounded-lg',tool==='eraser'?'bg-violet-600 text-white':'text-slate-300')} aria-label="Eraser"><Eraser className="size-4"/></button>
         <button type="button" onClick={()=>setTool('text')} className={cn('grid size-9 place-items-center rounded-lg',tool==='text'?'bg-violet-600 text-white':'text-slate-300')} aria-label="Text"><Type className="size-4"/></button>
@@ -266,6 +326,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
       <label className="flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-xs"><span>القلم</span><input type="color" value={color} onChange={e=>setColor(e.target.value)} className="size-7 border-0 bg-transparent p-0"/></label>
       <label className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1 text-xs"><span>الحجم</span><input type="range" min="1" max="24" value={lineWidth} onChange={e=>setLineWidth(Number(e.target.value))} className="w-20 accent-violet-500"/><span className="w-4 tabular-nums">{lineWidth}</span></label>
       {tool==='text'?<><input value={textDraft} onChange={e=>setTextDraft(e.target.value)} placeholder="اكتب النص ثم اضغط على الصفحة" className="h-9 min-w-32 flex-1 rounded-lg border border-white/10 bg-[#10122d] px-2 text-xs"/><label className="flex items-center gap-1 text-xs"><span>حجم</span><input type="number" min="10" max="120" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))} className="h-9 w-14 rounded-lg bg-[#10122d] px-1"/></label></>:null}
+      {tool==='select'&&selectedData?<><label className="flex items-center gap-1 text-xs">لون<input type="color" value={typeof selectedData.color==='string'?selectedData.color:color} onChange={e=>setSelectedData(data=>data?{...data,color:e.target.value}:data)} className="size-7 bg-transparent p-0"/></label><label className="flex items-center gap-1 text-xs">حجم<input type="range" min="1" max="40" value={Number(selectedData.width)||4} onChange={e=>setSelectedData(data=>data?{...data,width:Number(e.target.value)}:data)} className="w-16 accent-violet-500"/></label><button type="button" onClick={async()=>{if(!selectedElementId||!selectedData)return;try{await updateSharedWhiteboardElement(selectedElementId,selectedData);setElements(rows=>rows.map(row=>row.id===selectedElementId?{...row,data:selectedData}:row));toast.success('تم حفظ التعديل')}catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_UPDATE_FAILED')}}} className="grid size-9 place-items-center rounded-lg bg-violet-600" aria-label="Save selected element"><Save className="size-4"/></button><button type="button" onClick={async()=>{if(!selectedElementId)return;try{await deleteSharedWhiteboardElement(selectedElementId);setElements(rows=>rows.filter(row=>row.id!==selectedElementId));setSelectedElementId(null);setSelectedData(null)}catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_DELETE_FAILED')}}} className="grid size-9 place-items-center rounded-lg bg-rose-500/15 text-rose-300" aria-label="Delete selected element"><Trash2 className="size-4"/></button></>:null}
       <button type="button" onClick={undoOwnElement} className="grid size-9 place-items-center rounded-lg bg-white/5" aria-label="Undo last own element"><RotateCcw className="size-4"/></button>
       <div className="ms-auto flex items-center gap-1 rounded-xl bg-white/5 p-1" aria-label="Canvas zoom controls">
         <button type="button" onClick={()=>changeZoom(-0.1)} disabled={zoom<=0.25} className="grid size-8 place-items-center rounded-lg disabled:opacity-30" aria-label="Zoom out"><ZoomOut className="size-4"/></button>
@@ -284,7 +345,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     </div>
     <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4">
       <div className="relative mx-auto" style={{width:settings.width*zoom,height:settings.height*zoom}}>
-        <canvas ref={canvasRef} className="absolute left-0 top-0 touch-none rounded-xl border border-slate-300/20 shadow-2xl" style={{width:settings.width*zoom,height:settings.height*zoom,backgroundColor:settings.background,cursor:tool==='text'?'text':tool==='eraser'?'cell':'crosshair'}} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={()=>void onPointerUp()} onPointerCancel={()=>void onPointerUp()}/>
+        <canvas ref={canvasRef} className="absolute left-0 top-0 touch-none rounded-xl border border-slate-300/20 shadow-2xl" style={{width:settings.width*zoom,height:settings.height*zoom,backgroundColor:settings.background,cursor:tool==='text'?'text':tool==='select'?'move':tool==='eraser'?'cell':'crosshair'}} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={()=>void onPointerUp()} onPointerCancel={()=>void onPointerUp()}/>
       </div>
       {loading?<div className="absolute inset-0 grid place-items-center bg-black/35 text-sm">جاري تحميل السبورة...</div>:null}
       {error?<div className="absolute inset-0 grid place-items-center bg-black/60 p-4 text-center text-sm text-rose-200">{error}<Button className="mt-3" onClick={()=>void refreshBoard()}>حاول تاني</Button></div>:null}
