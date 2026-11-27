@@ -28,6 +28,7 @@ export interface SharedSessionSnapshot {
   planned_duration_seconds: number
   accumulated_study_seconds: number
   running_since: string | null
+  resume_at: string | null
   server_now: string
   host_id: string
   participant_id: string
@@ -165,6 +166,18 @@ export async function setMySessionPersonalStatus(sessionId:string,status:Persona
 
 export async function getSharedStudySessionSnapshot(sessionId: string) {
   return cloudRest<SharedSessionSnapshot>('rpc/get_study_session_snapshot',{
+    method:'POST',body:JSON.stringify({p_session_id:sessionId})
+  })
+}
+
+export async function requestSharedSessionResume(sessionId:string) {
+  return cloudRest<string>('rpc/request_study_session_resume',{
+    method:'POST',body:JSON.stringify({p_session_id:sessionId})
+  })
+}
+
+export async function completeSharedSessionResume(sessionId:string) {
+  return cloudRest<boolean>('rpc/complete_study_session_resume',{
     method:'POST',body:JSON.stringify({p_session_id:sessionId})
   })
 }
