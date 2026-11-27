@@ -44,8 +44,8 @@ Deno.serve(async (req: Request) => {
     global: { headers: { Authorization: authorization } },
   });
 
-  const token = authorization.slice("Bearer ".length);
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  const accessToken = authorization.slice("Bearer ".length);
+  const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
   if (authError || !user) return reply({ error: "INVALID_AUTH_TOKEN" }, 401);
 
   let body: { sessionId?: unknown; intent?: unknown };
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
   const channelName = `study_${sessionId.replaceAll("-", "")}`;
   const uid = uidFromUuid(user.id);
   const tokenTtlSeconds = 15 * 60;
-  const token = RtcTokenBuilder.buildTokenWithUid(
+  const rtcToken = RtcTokenBuilder.buildTokenWithUid(
     appId,
     appCertificate,
     channelName,
@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
     appId,
     channelName,
     uid,
-    token,
+    token: rtcToken,
     expiresIn: tokenTtlSeconds,
     role: intent,
     audioOnly: true,
