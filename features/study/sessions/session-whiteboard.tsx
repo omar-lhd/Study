@@ -193,6 +193,8 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     return()=>observer.disconnect()
   },[settings.width,settings.height])
 
+  const selectedElement=elements.find(element=>element.id===selectedElementId)
+  const selectedBounds=selectedElement&&selectedData?elementBounds({...selectedElement,data:selectedData}):null
   const changeZoom=(delta:number)=>setZoom(value=>Math.max(0.25,Math.min(2.5,Math.round((value+delta)*100)/100)))
   const fitBoard=()=>{
     const viewport=viewportRef.current
@@ -358,6 +360,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4">
       <div className="relative mx-auto" style={{width:settings.width*zoom,height:settings.height*zoom}}>
         <canvas ref={canvasRef} className="absolute left-0 top-0 touch-none rounded-xl border border-slate-300/20 shadow-2xl" style={{width:settings.width*zoom,height:settings.height*zoom,backgroundColor:settings.background,cursor:tool==='text'?'text':tool==='select'?'move':tool==='eraser'?'cell':'crosshair'}} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={()=>void onPointerUp()} onPointerCancel={()=>void onPointerUp()}/>
+        {tool==='select'&&selectedBounds?<div className="pointer-events-none absolute border-2 border-dashed border-violet-500 shadow-[0_0_0_1px_rgba(255,255,255,.4)]" style={{left:selectedBounds.x*zoom,top:selectedBounds.y*zoom,width:selectedBounds.w*zoom,height:selectedBounds.h*zoom}}/>:null}
       </div>
       {loading?<div className="absolute inset-0 grid place-items-center bg-black/35 text-sm">جاري تحميل السبورة...</div>:null}
       {error?<div className="absolute inset-0 grid place-items-center bg-black/60 p-4 text-center text-sm text-rose-200">{error}<Button className="mt-3" onClick={()=>void refreshBoard()}>حاول تاني</Button></div>:null}
