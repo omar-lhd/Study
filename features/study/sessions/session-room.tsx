@@ -32,6 +32,7 @@ function clock(value:number){const s=Math.max(0,Math.floor(value));const h=Math.
 
 export function SessionRoom({id}:{id:string}){
  const t=useT();const router=useRouter();const format=useSessionFormatters()
+ const leaveStartedRef=useRef(false)
  const [snapshot,setSnapshot]=useState<SharedSessionSnapshot|null>(null)
  const [participants,setParticipants]=useState<LiveSessionParticipant[]>([])
  const [goals,setGoals]=useState<LiveSessionGoal[]>([])
@@ -97,7 +98,7 @@ export function SessionRoom({id}:{id:string}){
   window.addEventListener('online',online);window.addEventListener('offline',offline)
   return()=>{clearInterval(heartbeat);clearInterval(sync);window.removeEventListener('online',online);window.removeEventListener('offline',offline)}
  },[id,current?.attendance_state,refresh])
- useEffect(()=>{return()=>{void leaveSharedStudySession(id).catch(()=>{})}},[id])
+ useEffect(()=>{leaveStartedRef.current=false;return()=>{if(!leaveStartedRef.current){leaveStartedRef.current=true;void leaveSharedStudySession(id).catch(()=>{})}}},[id])
  const realtimeRefresh=useCallback(()=>{void refresh().catch(()=>setConnected(false))},[refresh])
  useEffect(()=>{if(current?.attendance_state!=='present')return;return subscribeSharedSessionRealtime(id,realtimeRefresh)},[id,current?.attendance_state,realtimeRefresh])
  useEffect(()=>{if(pauseRequests.length>0)setShowPauseVote(true);else setShowPauseVote(false)},[pauseRequests.length])
