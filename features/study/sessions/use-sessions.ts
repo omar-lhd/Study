@@ -378,15 +378,21 @@ export async function sendSharedSessionImage(sessionId:string,senderId:string,fi
   if(!base||!key)throw new Error('SUPABASE_ENV_NOT_CONFIGURED')
   const ext=file.type==='image/jpeg'?'jpg':file.type==='image/png'?'png':'webp'
   const path=`${sessionId}/${senderId}/${crypto.randomUUID()}.${ext}`
+  const headers={apikey:key,Authorization:`Bearer ${session.access_token}`}
   const upload=await fetch(base+'/storage/v1/object/study-session-chat/'+path.split('/').map(encodeURIComponent).join('/'),{
-    method:'POST',headers:{apikey:key,Authorization:`Bearer ${session.access_token}`,'Content-Type':file.type,'x-upsert':'false'},body:file
+    method:'POST',headers:{...headers,'Content-Type':file.type,'x-upsert':'false'},body:file
   })
   if(!upload.ok)throw new Error('SESSION_IMAGE_UPLOAD_FAILED')
-  const inserted=await cloudRest<unknown>('study_session_chat',{
-    method:'POST',headers:{Prefer:'return=representation'},
-    body:JSON.stringify({session_id:sessionId,sender_id:senderId,content:'',client_event_id:clientEventId,message_type:'image',storage_path:path})
-  })
-  return inserted
+  try{
+    return await cloudRest<unknown>('study_session_chat',{
+      method:'POST',headers:{Prefer:'return=representation'},
+      body:JSON.stringify({session_id:sessionId,sender_id:senderId,content:'',client_event_id:clientEventId,message_type:'image',storage_path:path})
+    })
+  }catch(error){
+    // Remove the private object if the database insert fails.
+    await fetch(base+'/storage/v1/object/study-session-chat',{method:'DELETE',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({prefixes:[path]})}).catch(()=>{})
+    throw error
+  }
 }
 
 export async function getSharedSessionImageUrl(path:string,expiresIn=900){
