@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Check,  Headphones, Lock, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check,  Headphones, Grid3X3, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -60,8 +60,8 @@ export function SessionRoom({id}:{id:string}){
  const [rtcError,setRtcError]=useState<string|null>(null)
  const [timeDelta,setTimeDelta]=useState(600)
  const [panel,setPanel]=useState<'goals'|'chat'|'notes'|'board'>('goals')
- const [lastSync,setLastSync]=useState(Date.now()); const now=useNow(1000,snapshot?.status==='active'||pauseRequests.length>0||timeRequests.length>0)
- const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-lastSync)/1000):0)):0,[snapshot,now,lastSync])
+ const now=useNow(1000,snapshot?.status==='active'||pauseRequests.length>0||timeRequests.length>0)
+ const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.running_since?Math.floor((now-new Date(snapshot.running_since).getTime())/1000):0)):0,[snapshot,now])
  const remaining=snapshot?Math.max(0,snapshot.planned_duration_seconds-elapsed):0
  const current=participants.find(p=>p.user_id===userId)
  const seated=useMemo(()=>new Set(seats.map(s=>s.participant.user_id)),[seats])
@@ -81,7 +81,7 @@ export function SessionRoom({id}:{id:string}){
    listMyPendingSharedSessionInvitations(),getCloudCurrentUser(),listSharedSessionPauseRequests(id),listSharedSessionTimeChangeRequests(id),listSharedSessionEvents(id)
   ])
   setSnapshot(s);setParticipants(p);setGoals(g);setMessages(c);setSeatRequests(r);setSeats(ss);setInvitations(inv);setUserId(u);setPauseRequests(pauses);setTimeRequests(times);setEvents(ev)
-  setLastSync(Date.now());setConnected(true);setError(null)
+  setConnected(true);setError(null)
  },[id])
  useEffect(()=>{
   let alive=true;setLoading(true)
@@ -164,7 +164,7 @@ export function SessionRoom({id}:{id:string}){
     <div className="grid size-12 shrink-0 place-items-center rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-600/30 to-blue-500/15 text-violet-300 shadow-[0_0_26px_rgba(109,66,255,.25)]"><Users className="size-6"/></div>
     <div className="min-w-0"><h1 className="truncate text-base font-semibold">{snapshot.title}</h1><button type="button" onClick={()=>setShowRoster(true)} className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn('size-2 rounded-full',connected?'bg-emerald-400':'bg-rose-500')}/>{snapshot.status==='active'?'Live':snapshot.status==='paused'?'Paused':snapshot.status} · {snapshot.participant_count} {t('sessions.phase2.room.present')} · <span className={cn('text-[10px]',rtcStatus==='connected'?'text-emerald-300':rtcStatus==='error'?'text-rose-300':'text-slate-400')}>{rtcStatus==='connected'?'صوت متصل':rtcStatus==='connecting'?'جاري الاتصال':rtcStatus==='error'?'خطأ الصوت':'الصوت غير متصل'}</span></button></div>
    </div>
-   <button className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-300" aria-label="More"><MoreHorizontal/></button>
+   <button type="button" onClick={()=>setShowRoster(true)} className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-300" aria-label="Participants and session options"><MoreHorizontal/></button>
   </div>
   <Card className="shrink-0 overflow-hidden border-violet-400/20 bg-gradient-to-r from-[#17143d]/95 via-[#111638]/90 to-[#25145a]/80 p-2 shadow-[0_14px_50px_rgba(26,12,92,.32)] backdrop-blur-2xl">
    <div className="flex items-center gap-3"><Target className="size-7 shrink-0 text-violet-300"/><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm font-semibold"><span>{t('sessions.phase2.room.goals')}</span><span>{goalPercent}%</span></div><p className="mt-0.5 truncate text-xs text-slate-300">{goals.find(g=>!g.completed)?.text||snapshot.subject||snapshot.title}</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-black/25"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-cyan-400" style={{width:goalPercent+'%'}}/></div></div></div>
@@ -184,7 +184,7 @@ export function SessionRoom({id}:{id:string}){
     const seat=seats.find(item=>item.seat_number===index+1)
     const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
     return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id===userId)setMicEnabled(v=>!v);else void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#10122d]/70 py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
-     <span className={cn('relative grid size-[4.25rem] place-items-center rounded-full border-2 p-1 shadow-[0_0_24px_rgba(65,110,255,.22)] sm:size-24',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
+     <span className={cn('relative grid size-[5.5rem] place-items-center rounded-full border-2 p-1 shadow-[0_0_24px_rgba(65,110,255,.22)] sm:size-24',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
       {person?.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full object-cover"/>:<span className="grid size-full place-items-center rounded-full bg-[#101334] text-violet-200">{person?person.display_name.slice(0,1):<Plus className="size-4"/>}</span>}
       {person?<span className="absolute -bottom-0.5 -end-0.5 size-2.5 rounded-full border border-[#090b25] bg-emerald-400"/>:null}{person?.focus_mode?<Target className="absolute -top-1 -end-1 size-3 rounded-full bg-[#090b25] text-cyan-300"/>:null}
      </span>
@@ -195,11 +195,11 @@ export function SessionRoom({id}:{id:string}){
   <Card className="shrink-0 border-violet-400/20 bg-[#0e1030]/80 p-2 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
    <div className="flex items-center justify-between gap-2">
     <button type="button" onClick={()=>setShowRoster(true)} className="flex min-w-0 items-center gap-2 text-xs font-medium"><Users className="size-4 text-violet-300"/>{t('sessions.phase2.room.listeners')} · {listeners.length}<span className="text-muted-foreground">({snapshot.participant_count})</span></button>
-    <button type="button" onClick={()=>setShowRoster(true)} className="shrink-0 rounded-full border border-violet-400/30 px-3 py-1 text-xs text-violet-200" disabled={speakers.length<6||listeners.length===0}>{t('sessions.phase2.room.requestSeat')}</button>
+    <button type="button" onClick={()=>setShowRoster(true)} className="shrink-0 rounded-full border border-violet-400/30 px-3 py-1 text-xs text-violet-200" disabled={listeners.length===0}>{t('sessions.phase2.room.requestSeat')}</button>
    </div>
   </Card>
   <div className="grid shrink-0 grid-cols-4 gap-1.5">
-   {(['goals','chat','notes','board'] as const).map(p=><button key={p} onClick={()=>{setPanel(p);setPanelOpen(true)}} className={cn('flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-[10px] font-medium',panel===p?'border-violet-400/40 bg-violet-500/15 text-violet-200':'border-white/10 bg-[#10122d]/80 text-slate-300')}><span className="text-violet-300">{p==='goals'?<Target/>:p==='chat'?<MessageCircle/>:p==='notes'?<BookOpen/>:<Lock/>}</span>{t(('sessions.phase2.room.'+p) as MessageKey)}</button>)}
+   {(['goals','chat','notes','board'] as const).map(p=><button key={p} onClick={()=>{setPanel(p);setPanelOpen(true)}} className={cn('flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-[10px] font-medium',panel===p?'border-violet-400/40 bg-violet-500/15 text-violet-200':'border-white/10 bg-[#10122d]/80 text-slate-300')}><span className="text-violet-300">{p==='goals'?<Target/>:p==='chat'?<MessageCircle/>:p==='notes'?<BookOpen/>:<Grid3X3/>}</span>{t(('sessions.phase2.room.'+p) as MessageKey)}</button>)}
   </div>
   {panelOpen&&panel!=='board'?<div className="fixed inset-x-3 bottom-24 top-24 z-[65] flex flex-col gap-2 overflow-hidden"><div className="flex shrink-0 justify-end"><button type="button" onClick={()=>setPanelOpen(false)} className="grid size-9 place-items-center rounded-full border border-white/10 bg-[#111333]" aria-label="Close session panel"><X className="size-4"/></button></div><div className="min-h-0 flex-1 overflow-hidden">
   {panel==='goals'?<Card className="h-full min-h-0 overflow-y-auto border-violet-400/15 bg-[#0d102b]/90 p-3"><div className="mb-3 flex items-center gap-2 font-semibold"><Target className="size-4 text-violet-300"/>{t('sessions.phase2.room.goals')}</div><div className="max-h-[calc(100%-5rem)] space-y-2 overflow-y-auto">{goals.map(g=><button key={g.id} onClick={()=>toggleGoal(g)} className="flex w-full items-center gap-2 rounded-xl bg-white/5 p-3 text-start text-sm"><span className={cn('grid size-5 place-items-center rounded-md border',g.completed?'border-cyan-400 bg-cyan-500/20 text-cyan-300':'border-white/20')}>{g.completed?<Check className="size-3.5"/>:null}</span><span className={cn(g.completed?'text-slate-500 line-through':'')}>{g.text}</span></button>)}</div><form className="mt-3 flex gap-2" onSubmit={e=>{e.preventDefault();void addGoal()}}><input value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} placeholder={t('sessions.phase2.room.goalPlaceholder')} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"/><Button disabled={!goalDraft.trim()}><Send className="size-4"/></Button></form></Card>:null}
