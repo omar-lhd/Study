@@ -273,6 +273,7 @@ export interface LiveSessionParticipant {
   attendance_state: 'invited' | 'present' | 'left' | 'suspended'
   focus_mode: boolean
   whiteboard_open: boolean
+  personal_status: PersonalSessionStatus
   display_name: string
   avatar_url: string | null
 }
