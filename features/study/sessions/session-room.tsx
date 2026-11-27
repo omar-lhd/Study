@@ -361,6 +361,34 @@ export function SessionRoom({id}:{id:string}){
    <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} audioAvailable={snapshot.allow_audio&&(snapshot.status==='active'||snapshot.status==='paused')} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onVolumes={handleVolumes} onStatus={handleRtcStatus}/>
   <main className="study-session-room mx-auto grid h-[100dvh] min-h-0 w-full max-w-none gap-2 px-3 pt-3 pb-2" data-session-status={snapshot.status} onPointerDownCapture={primeSessionAudio}>
    <div className="study-session-atmosphere" aria-hidden="true"/>
+   <div className="study-room-header flex min-w-0 items-center justify-between gap-3">
+    <Link href="/study" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl" aria-label="العودة للمذاكرة"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+     <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-600/30 to-blue-500/15 text-violet-300 shadow-[0_0_26px_rgba(109,66,255,.25)]"><Users className="size-6"/></div>
+     <div className="min-w-0">
+      <h1 className="truncate text-sm font-semibold sm:text-base">{snapshot.title}</h1>
+      <button type="button" onClick={()=>setShowRoster(true)} className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+       <span className={cn('size-2 shrink-0 rounded-full',connected?'bg-emerald-400':'bg-rose-500')}/>
+       <span className="truncate">{snapshot.status==='active'?'Live':snapshot.status==='paused'?'Paused':snapshot.status==='completed'?'منتهية':snapshot.status==='scheduled'?'مجدولة':snapshot.status} · {snapshot.participant_count} {t('sessions.phase2.room.present')}</span>
+       <span className={cn('shrink-0',rtcStatus==='connected'?'text-emerald-300':rtcStatus==='error'?'text-rose-300':'text-slate-400')}>{rtcStatus==='connected'?'🎙 متصل':rtcStatus==='connecting'?'يتصل…':rtcStatus==='error'?'الصوت به خطأ':'الصوت غير متصل'}</span>
+      </button>
+     </div>
+    </div>
+    <button type="button" onClick={()=>setShowSessionOptions(true)} className="grid size-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200" aria-label="إعدادات الجلسة"><MoreHorizontal className="size-5"/></button>
+   </div>
+   <Card className="study-room-goal shrink-0 overflow-hidden border-violet-400/20 bg-gradient-to-r from-[#17143d]/95 via-[#111638]/90 to-[#25145a]/80 p-2 shadow-[0_14px_50px_rgba(26,12,92,.32)] backdrop-blur-2xl">
+    <div className="flex items-center gap-3">
+     <Target className="size-7 shrink-0 text-violet-300"/>
+     <div className="min-w-0 flex-1">
+      <div className="flex justify-between gap-2 text-sm font-semibold"><span>{t('sessions.phase2.room.goals')}</span><span className="tabular-nums">{goalPercent}%</span></div>
+      <p className="mt-0.5 truncate text-xs text-slate-300">{goals.find(g=>!g.completed)?.text||snapshot.subject||snapshot.title}</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/25"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-cyan-400 transition-[width] duration-700 ease-out" style={{width:goalPercent+'%'}}/></div>
+     </div>
+    </div>
+   </Card>
+   {current?.personal_status?<Card className="study-room-personal-status border-cyan-300/30 bg-[#0b2040]/95 p-2 shadow-lg">
+    <div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-cyan-100">{current.personal_status==='coffee'?<Coffee className="size-5"/>:current.personal_status==='restroom'?<Toilet className="size-5"/>:<MessagesSquare className="size-5"/>}<span>انت دلوقتي مشغول، خلصت؟</span></span><Button size="sm" variant="outline" onClick={()=>void changePersonalStatus(null)}>إيقاف</Button></div>
+   </Card>:null}
 
    <section className="study-room-timer relative flex min-h-0 cursor-pointer items-center justify-center overflow-hidden py-1" role="button" tabIndex={0} aria-label="Adjust session timer" onClick={()=>setShowTimerAdjust(true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowTimerAdjust(true)}}}>
    <div className="pointer-events-none absolute -inset-x-10 top-1/3 h-32 rotate-[-8deg] rounded-[50%] border-y border-cyan-400/20 bg-gradient-to-r from-transparent via-blue-500/10 to-violet-500/10 blur-xl"/>
