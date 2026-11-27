@@ -104,7 +104,7 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{if(timeRequests.length>0)setShowTimerAdjust(true)},[timeRequests.length])
  useEffect(()=>{if(current){setMode(current.focus_mode?'focus':'collaboration');setMuteAll(current.focus_mode)}},[current?.focus_mode])
  useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
- const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null)},[])
+ const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null);if(status==='error')setMicEnabled(false)},[])
  function eventLabel(event:SessionEvent){
   const targetId=typeof event.payload.participant_id==='string'?event.payload.participant_id:typeof event.payload.user_id==='string'?event.payload.user_id:typeof event.payload.target_participant_id==='string'?event.payload.target_participant_id:null
   const target=targetId?participants.find(person=>person.id===targetId||person.user_id===targetId):undefined
@@ -157,7 +157,7 @@ export function SessionRoom({id}:{id:string}){
  const isFocus=mode==='focus'
  return <>
   <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onStatus={handleRtcStatus}/>
-  <main className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 w-full max-w-6xl flex-col gap-2 overflow-hidden pb-2 sm:gap-3">
+  <main className="study-session-room mx-auto flex h-[100dvh] min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden px-3 pt-3 pb-2 sm:gap-3">
   <div className="flex items-center justify-between gap-3">
    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
    <div className="flex min-w-0 flex-1 items-center gap-3">
