@@ -112,8 +112,6 @@ export function SessionRoom({id}:{id:string}){
  const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null);if(status==='error')setMicEnabled(false)},[])
  const handleVolumes=useCallback((levels:Record<string,number>)=>setVolumes(levels),[])
  const changePersonalStatus=async(status:PersonalSessionStatus)=>{try{await setMySessionPersonalStatus(id,status);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PERSONAL_STATUS_FAILED')}}
- const handleVolumes=useCallback((levels:Record<string,number>)=>setVolumes(levels),[])
- const changePersonalStatus=async(status:PersonalSessionStatus)=>{try{await setMySessionPersonalStatus(id,status);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PERSONAL_STATUS_FAILED')}}
  function eventLabel(event:SessionEvent){
   const targetId=typeof event.payload.participant_id==='string'?event.payload.participant_id:typeof event.payload.user_id==='string'?event.payload.user_id:typeof event.payload.target_participant_id==='string'?event.payload.target_participant_id:null
   const target=targetId?participants.find(person=>person.id===targetId||person.user_id===targetId):undefined
@@ -137,7 +135,6 @@ export function SessionRoom({id}:{id:string}){
    case 'session.time_changed':return 'تم تعديل وقت الجلسة'
    case 'session.time_change_rejected':return 'تم رفض تعديل الوقت'
    case 'session.focus_changed':return actor+(event.payload.focus_mode===true?' فعّل وضع التركيز':' أوقف وضع التركيز')
-    case 'participant.personal_status':return actor+(event.payload.status==='coffee'?' خرج لشرب القهوة':event.payload.status==='restroom'?' ذهب لدورة المياه':event.payload.status==='quick_talk'?' خرج لمحادثة قصيرة':' عاد للجلسة')
     case 'participant.personal_status':return actor+(event.payload.status==='coffee'?' خرج لشرب القهوة':event.payload.status==='restroom'?' ذهب لدورة المياه':event.payload.status==='quick_talk'?' خرج لمحادثة قصيرة':' عاد للجلسة')
    case 'participant.whiteboard_opened':return targetName+' داخل السبورة'
    case 'participant.whiteboard_closed':return targetName+' خرج من السبورة'
@@ -163,7 +160,6 @@ export function SessionRoom({id}:{id:string}){
  const unreadRequests=incomingSeatRequests.filter(req=>req.status==='pending')
  if(loading)return <div className="mx-auto max-w-5xl p-4"><Card className="p-8 text-center text-sm text-muted-foreground">{t('sessions.phase2.room.loading')}</Card></div>
  if(error||!snapshot)return <div className="mx-auto max-w-4xl space-y-4 p-4"><Link href="/study" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="size-4 rtl:rotate-180"/>{t('sessions.room.back')}</Link><Card className="border-danger/30 p-5"><p className="font-semibold">{t('sessions.loadError.title')}</p><p className="mt-2 text-sm text-muted-foreground">{t('sessions.phase2.room.loadError')}</p><Button className="mt-4" variant="outline" onClick={()=>refresh().then(()=>setError(null)).catch(e=>setError(String(e)))}>{t('common.retry')}</Button></Card></div>
- const completedGoals=goals.filter(g=>g.completed).length
  const goalPercent=Math.min(100,Math.round((elapsed/Math.max(1,snapshot.planned_duration_seconds))*100))
  const isFocus=mode==='focus'
  return <>
