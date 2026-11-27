@@ -65,7 +65,8 @@ function drawElement(ctx:CanvasRenderingContext2D,element:PreviewElement){
       if(data.eraser===true)ctx.globalCompositeOperation='destination-out'
       ctx.beginPath()
       ctx.moveTo(first.x,first.y)
-      for(let i=1;i<points.length;i++){const point=points[i];if(point)ctx.lineTo(point.x,point.y)}
+      for(let i=1;i<points.length;i++){const point=points[i],previous=points[i-1];if(point&&previous){const midX=(previous.x+point.x)/2,midY=(previous.y+point.y)/2;ctx.quadraticCurveTo(previous.x,previous.y,midX,midY)}}
+      const last=points[points.length-1];if(last&&points.length>1)ctx.lineTo(last.x,last.y)
       if(points.length===1)ctx.lineTo(first.x+0.1,first.y+0.1)
       ctx.stroke()
     }
@@ -145,6 +146,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   const shapeRef=useRef<{start:Point;end:Point;shape:'rect'|'circle'|'line'}|null>(null)
   const lastPointRef=useRef<Point|null>(null)
   const selectionDragRef=useRef<{id:string;start:Point;original:Record<string,unknown>}|null>(null)
+  const pendingRefreshRef=useRef(false)
 
   const refreshBoard=useCallback(async()=>{
     const [page,rows]=await Promise.all([getSharedWhiteboardPage(sessionId,pageIndex),listSharedWhiteboardElements(sessionId,pageIndex)])
@@ -168,7 +170,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     return()=>{void setMyWhiteboardPresence(sessionId,false).catch(()=>{})}
   },[sessionId,userId])
 
-  useEffect(()=>subscribeSharedSessionRealtime(sessionId,()=>{if(!drawingRef.current)void refreshBoard().catch(()=>{})}),[sessionId,refreshBoard])
+  useEffect(()=>subscribeSharedSessionRealtime(sessionId,()=>{if(drawingRef.current){pendingRefreshRef.current=true;return}void refreshBoard().catch(()=>{})}),[sessionId,refreshBoard])
 
   useEffect(()=>{
     const canvas=canvasRef.current
@@ -219,7 +221,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     try{
       const rows=await addSharedWhiteboardElement(sessionId,pageIndex,userId,elementType,data)
       const created=rows[0]
-      if(created)setElements(current=>[...current,created])
+      if(created)setElements(current=>current.some(element=>element.id===created.id)?current:[...current,created])
     }catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_SAVE_FAILED')}
   }
 
@@ -263,16 +265,15 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
       strokeRef.current.points.push(point)
       const ctx=event.currentTarget.getContext('2d')
       if(ctx&&previous){
-        if(strokeRef.current.eraser){
-          renderBoard(event.currentTarget,settings,elements,{element_type:'stroke',data:{points:strokeRef.current.points,color:strokeRef.current.color,width:strokeRef.current.width,eraser:true}})
-        }else{
-          ctx.save()
-          ctx.strokeStyle=strokeRef.current.color
-          ctx.lineWidth=strokeRef.current.width
-          ctx.lineCap='round';ctx.lineJoin='round'
-          ctx.beginPath();ctx.moveTo(previous.x,previous.y);ctx.lineTo(point.x,point.y);ctx.stroke()
-          ctx.restore()
-        }
+        ctx.save()
+        ctx.strokeStyle=strokeRef.current.eraser?settings.background:strokeRef.current.color
+        ctx.lineWidth=strokeRef.current.width
+        ctx.lineCap='round';ctx.lineJoin='round'
+        ctx.beginPath();ctx.moveTo(previous.x,previous.y)
+        if(strokeRef.current.eraser)ctx.lineTo(point.x,point.y)
+        else{ctx.quadraticCurveTo(previous.x,previous.y,(previous.x+point.x)/2,(previous.y+point.y)/2);ctx.lineTo(point.x,point.y)}
+        ctx.stroke()
+        ctx.restore()
       }
       lastPointRef.current=point
     }else if(shapeRef.current){
@@ -295,6 +296,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
           setElements(current=>current.map(element=>element.id===selection.id?{...element,data}:element))
         }catch(e){toast.error(e instanceof Error?e.message:'WHITEBOARD_UPDATE_FAILED')}
       }
+      if(pendingRefreshRef.current){pendingRefreshRef.current=false;void refreshBoard().catch(()=>{})}
       return
     }
     if(strokeRef.current){
@@ -307,6 +309,7 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
       await saveElement('shape',{shape:item.shape,x:item.start.x,y:item.start.y,w:item.end.x-item.start.x,h:item.end.y-item.start.y,color,width:lineWidth})
     }
     lastPointRef.current=null
+    if(pendingRefreshRef.current){pendingRefreshRef.current=false;void refreshBoard().catch(()=>{})}
   }
 
   const undoOwnElement=async()=>{
