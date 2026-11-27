@@ -26,6 +26,92 @@ type ChatMessage={id:string;sender_id:string;content:string;client_event_id:stri
 type SeatRequest={id:string;requester_id:string;target_participant_id:string;status:string;expires_at:string;created_at:string}
 type Seat={seat_number:number;participant_id:string;participant:{user_id:string;profiles:{display_name:string;avatar_url:string|null}|null}}
 type Invitation={invitation_id:string;session_id:string;title:string;session_type:string;subject:string|null;starts_at:string|null;planned_duration_seconds:number;inviter_id:string;inviter_name:string|null;created_at:string}
+
+function SessionImageDoodleEditor({imageUrl,onClose,onSend}:{imageUrl:string;onClose:()=>void;onSend:(file:File)=>Promise<void>}){
+ const canvasRef=useRef<HTMLCanvasElement|null>(null)
+ const imageRef=useRef<HTMLImageElement|null>(null)
+ const drawingRef=useRef(false)
+ const [loaded,setLoaded]=useState(false)
+ const [brushColor,setBrushColor]=useState('#ff4aa2')
+ const [brushSize,setBrushSize]=useState(6)
+ const [busy,setBusy]=useState(false)
+ const [error,setError]=useState<string|null>(null)
+ useEffect(()=>{
+  let cancelled=false
+  const image=new Image()
+  image.crossOrigin='anonymous'
+  image.onload=()=>{
+   if(cancelled)return
+   imageRef.current=image
+   const canvas=canvasRef.current
+   const ctx=canvas?.getContext('2d')
+   if(!canvas||!ctx)return
+   canvas.width=image.naturalWidth
+   canvas.height=image.naturalHeight
+   ctx.drawImage(image,0,0)
+   setLoaded(true)
+  }
+  image.onerror=()=>{if(!cancelled)setError('تعذر تحميل الصورة للرسم عليها')}
+  image.src=imageUrl
+  return()=>{cancelled=true;image.onload=null;image.onerror=null}
+ },[imageUrl])
+ const point=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+  const canvas=event.currentTarget,rect=canvas.getBoundingClientRect()
+  return {x:(event.clientX-rect.left)*(canvas.width/rect.width),y:(event.clientY-rect.top)*(canvas.height/rect.height)}
+ }
+ const pointerDown=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+  if(!loaded||busy)return
+  event.preventDefault()
+  const canvas=event.currentTarget,ctx=canvas.getContext('2d')
+  if(!ctx)return
+  canvas.setPointerCapture(event.pointerId)
+  const p=point(event)
+  drawingRef.current=true
+  ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+.1,p.y+.1)
+  ctx.strokeStyle=brushColor
+  ctx.lineWidth=brushSize*(canvas.width/Math.max(1,canvas.clientWidth))
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke()
+ }
+ const pointerMove=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+  if(!drawingRef.current)return
+  const ctx=event.currentTarget.getContext('2d')
+  if(!ctx)return
+  const p=point(event);ctx.lineTo(p.x,p.y);ctx.stroke()
+ }
+ const pointerUp=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+  drawingRef.current=false
+  if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId)
+ }
+ const clearDrawing=()=>{
+  const canvas=canvasRef.current,ctx=canvas?.getContext('2d'),image=imageRef.current
+  if(!canvas||!ctx||!image)return
+  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0)
+ }
+ const send=async()=>{
+  const canvas=canvasRef.current
+  if(!canvas||!loaded)return
+  setBusy(true);setError(null)
+  try{
+   const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/png'))
+   if(!blob)throw new Error('تعذر تجهيز الصورة المعدلة')
+   await onSend(new File([blob],`study-doodle-${Date.now()}.png`,{type:'image/png'}))
+  }catch(e){setError(e instanceof Error?e.message:'تعذر إرسال الصورة المعدلة')}
+  finally{setBusy(false)}
+ }
+ return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-3 backdrop-blur-md">
+  <Card className="flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden border-violet-400/30 bg-[#10122f] p-3">
+   <div className="mb-2 flex items-center justify-between gap-2"><div><strong>الرسم على الصورة</strong><p className="text-[11px] text-slate-400">ارسم بإصبعك أو بالقلم فوق الصورة</p></div><button type="button" onClick={onClose} disabled={busy} className="grid size-9 shrink-0 place-items-center rounded-lg bg-white/5" aria-label="إغلاق"><X className="size-4"/></button></div>
+   <div className="min-h-0 flex-1 overflow-auto rounded-xl bg-black/30 p-1">
+    {loaded?<canvas ref={canvasRef} className="mx-auto block max-h-[68dvh] max-w-full touch-none rounded-lg" style={{width:'100%',height:'auto'}} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}/>:<div className="grid min-h-48 place-items-center text-sm text-slate-300">{error||'جاري تحميل الصورة...'}</div>}
+   </div>
+   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex items-center gap-2"><span className="text-xs text-slate-300">القلم</span>{['#ff4aa2','#22d3ee','#facc15','#ffffff'].map(color=><button key={color} type="button" onClick={()=>setBrushColor(color)} aria-label={'لون '+color} aria-pressed={brushColor===color} className="size-7 rounded-full border-2" style={{backgroundColor:color,borderColor:brushColor===color?'#a78bfa':'#ffffff55'}/>)}<input type="range" min="2" max="18" value={brushSize} onChange={e=>setBrushSize(Number(e.target.value))} aria-label="سمك القلم" className="w-20 accent-violet-500"/></div>
+    <div className="flex items-center gap-2"><Button variant="outline" size="sm" onClick={clearDrawing} disabled={!loaded||busy}>مسح الرسم</Button><Button size="sm" onClick={()=>void send()} disabled={!loaded||busy}>{busy?'جاري الإرسال':'إرسال للجميع'}</Button></div>
+   </div>
+   {error?<p className="mt-2 text-xs text-rose-300">{error}</p>:null}
+  </Card>
+ </div>
+}
 const DEVICE_KEY='psc:study-session-device:v1'
 function deviceId(){let id=localStorage.getItem(DEVICE_KEY);if(!id){id=crypto.randomUUID();localStorage.setItem(DEVICE_KEY,id)}return id}
 function clock(value:number){const s=Math.max(0,Math.floor(value));const h=Math.floor(s/3600);const m=Math.floor((s%3600)/60);const sec=s%60;return h?String(h)+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
@@ -85,12 +171,6 @@ export function SessionRoom({id}:{id:string}){
   if(!message.storage_path)return
   try{const url=await getSharedSessionImageUrl(message.storage_path);setViewingImage({messageId:message.id,path:message.storage_path,url});setImageDoodle(false)}
   catch(e){toast.error(e instanceof Error?e.message:'SESSION_IMAGE_LOAD_FAILED')}
- }
- const sendDoodleCopy=async(canvas:HTMLCanvasElement)=>{
-  const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/png'))
-  if(!blob)return
-  await uploadChatImage(new File([blob],`study-doodle-${Date.now()}.png`,{type:'image/png'}))
-  setViewingImage(null)
  }
  const signChatImages=useCallback(async(rows:ChatMessage[])=>{
   const images=rows.filter(row=>row.message_type==='image'&&row.storage_path&&!chatImageUrlMap[row.id])
@@ -267,7 +347,7 @@ export function SessionRoom({id}:{id:string}){
   {showPauseVote&&pauseRequests.length>0?<div className="fixed inset-0 z-[81] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"><Card className="max-h-[80dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4"><div className="mb-3 flex items-center justify-between"><strong>تصويت إيقاف المؤقت</strong><button type="button" onClick={()=>setShowPauseVote(false)} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close pause vote"><X className="size-4"/></button></div>{pauseRequests.map(request=><div key={request.id} className="rounded-xl border border-white/10 p-3"><p className="text-sm">هل توافق على إيقاف المؤقت؟</p><p className="mt-1 text-xs text-muted-foreground">{request.yes_count} موافق · {request.no_count} رافض · {request.electorate.length} مشارك · متبقي {Math.max(0,Math.ceil((new Date(request.expires_at).getTime()-now)/1000))} ث</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{width:Math.min(100,Math.round((request.yes_count/request.electorate.length)*100))+'%'}}/></div><div className="mt-3 flex gap-2"><Button className="flex-1" onClick={()=>void votePause(request,'yes')}>آه</Button><Button className="flex-1" variant="outline" onClick={()=>void votePause(request,'no')}>لأ</Button></div></div>)}</Card></div>:null}
   {showTimerAdjust?<div className="fixed inset-0 z-[82] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"><Card className="max-h-[85dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4"><div className="mb-3 flex items-center justify-between"><strong className="flex items-center gap-2"><Timer className="size-5 text-violet-300"/>تعديل وقت الجلسة</strong><button type="button" onClick={()=>setShowTimerAdjust(false)} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close timer controls"><X className="size-4"/></button></div>{isModerator&&(snapshot.status==='active'||snapshot.status==='paused')?<><p className="text-sm text-slate-300">اختر الزيادة أو النقصان. لن يتغير الوقت إلا بعد موافقة نصف الأعضاء الآخرين المطلوبين.</p><div className="mt-3 grid grid-cols-3 gap-2"><Button variant="outline" onClick={()=>void proposeTimeChange(-900)}>-15 د</Button><Button variant="outline" onClick={()=>void proposeTimeChange(600)}>+10 د</Button><Button variant="outline" onClick={()=>void proposeTimeChange(3300)}>+55 د</Button></div><div className="mt-4 rounded-xl bg-white/5 p-3"><div className="flex justify-between text-sm"><span>تعديل مخصص</span><strong dir="ltr">{timeDelta/60>0?'+':''}{timeDelta/60} min</strong></div><input className="mt-3 w-full accent-violet-500" type="range" min="-480" max="480" step="5" value={timeDelta/60} onChange={e=>setTimeDelta(Number(e.target.value)*60)} aria-label="Custom session duration adjustment"/><Button className="mt-3 w-full" disabled={timeDelta===0} onClick={()=>void proposeTimeChange(timeDelta)}>طلب تعديل الوقت</Button></div></>:<p className="text-sm text-slate-300">طلبات تعديل الوقت تنتظر موافقتك هنا.</p>}{timeRequests.map(request=><div key={request.id} className="mt-3 rounded-xl border border-white/10 p-3"><p className="text-sm">{participants.find(person=>person.user_id===request.requested_by)?.display_name??'المشرف'} يريد {request.delta_seconds>0?'إضافة':'تقليل'} {Math.abs(request.delta_seconds)/60} دقيقة.</p><p className="mt-1 text-xs text-muted-foreground">{request.yes_count} موافق · {request.no_count} رافض · المطلوب {Math.ceil((request.electorate.length+1)/2)} من {request.electorate.length+1} · متبقي {Math.max(0,Math.ceil((new Date(request.expires_at).getTime()-now)/1000))} ث</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{width:Math.min(100,Math.round((request.yes_count/request.electorate.length)*100))+'%'}}/></div>{request.requested_by===userId?<p className="mt-3 text-xs text-cyan-200">طلبك — بانتظار موافقة الأعضاء</p>:<div className="mt-3 flex gap-2"><Button className="flex-1" onClick={()=>void voteTimeChange(request,'yes')}>آه</Button><Button className="flex-1" variant="outline" onClick={()=>void voteTimeChange(request,'no')}>لأ</Button></div>}</div>)}</Card></div>:null}
   {rtcError?<div className="fixed inset-x-3 top-20 z-[60] mx-auto max-w-lg rounded-xl border border-rose-400/30 bg-[#211127] p-3 text-xs text-rose-200">{rtcError==='AGORA_NOT_CONFIGURED'?'Agora غير مهيأ على الخادم. يجب ضبط AGORA_APP_ID و AGORA_APP_CERTIFICATE في Supabase Edge Function Secrets. لا ترسل الشهادة السرية في المحادثة.':rtcError==='AGORA_SDK_LOAD_FAILED'?'تعذر تحميل Agora Web SDK. تحقق من اتصال الإنترنت وسياسة تحميل السكربت.':rtcError}</div>:null}
-  {viewingImage?<div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-3 backdrop-blur-md"><Card className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden border-violet-400/30 bg-[#10122f] p-3"><div className="mb-2 flex items-center justify-between"><strong>عرض الصورة والرسم عليها</strong><button type="button" onClick={()=>setViewingImage(null)} className="grid size-9 place-items-center rounded-lg bg-white/5" aria-label="إغلاق"><X className="size-4"/></button></div><img src={viewingImage.url} alt="صورة المحادثة" className="mx-auto max-h-[68dvh] max-w-full object-contain"/><div className="mt-2 flex justify-end gap-2"><Button variant="outline" onClick={()=>setImageDoodle(v=>!v)}><Pencil className="me-2 size-4"/>رسم</Button><Button disabled={!imageDoodle} onClick={()=>{const canvas=document.createElement('canvas');const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const ctx=canvas.getContext('2d');ctx?.drawImage(img,0,0);if(ctx){ctx.strokeStyle='#ff4aa2';ctx.lineWidth=Math.max(3,canvas.width/450);ctx.beginPath();ctx.moveTo(canvas.width*.25,canvas.height*.55);ctx.lineTo(canvas.width*.75,canvas.height*.45);ctx.stroke()}void sendDoodleCopy(canvas)};img.src=viewingImage.url}}>إرسال نسخة مرسومة</Button></div></Card></div>:null}
+  {viewingImage?<SessionImageDoodleEditor imageUrl={viewingImage.url} onClose={()=>setViewingImage(null)} onSend={async(file)=>{await uploadChatImage(file);setViewingImage(null)}}/>:null}
   {showRoster?<div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"><Card className="max-h-[82dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4" style={{transform:`translateY(${rosterOffset}px)`}}><div className="mb-3 flex items-center justify-between" onPointerDown={e=>{rosterDragStartRef.current={y:e.clientY,offset:rosterOffset};e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(rosterDragStartRef.current)setRosterOffset(Math.max(-120,Math.min(180,rosterDragStartRef.current.offset+e.clientY-rosterDragStartRef.current.y)))}} onPointerUp={()=>{rosterDragStartRef.current=null}} onPointerCancel={()=>{rosterDragStartRef.current=null}} style={{touchAction:"none",cursor:"grab"}}><strong className="text-base">{t('sessions.phase2.room.present')} · {snapshot.participant_count}</strong><button type="button" onClick={()=>{setShowRoster(false);setRosterOffset(0)}} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close participant list"><X className="size-4"/></button></div><p className="mb-3 text-xs text-muted-foreground">النقطة الخضراء = مقعد صوت · الصفراء = مستمع</p><div className="space-y-2">{presentParticipants.map(person=>{const speaker=seated.has(person.user_id);const muted=mutedUserIds.includes(person.user_id);return <div key={person.id} className="rounded-xl bg-white/[0.035] p-2"><button type="button" onClick={()=>speaker&&person.user_id!==userId?void requestSeat(person):undefined} className="flex w-full items-center gap-3 text-start"><span className={cn('grid size-7 shrink-0 place-items-center rounded-full text-white',speaker?'bg-emerald-500':'bg-amber-500')}>{speaker?<Mic className="size-3.5"/>:<MessageCircle className="size-3.5"/>}</span>{person.avatar_url?<img src={person.avatar_url} alt="" className="size-9 rounded-full object-cover"/>:<span className="grid size-9 place-items-center rounded-full bg-violet-500/20">{person.display_name.slice(0,1)}</span>}<span className="min-w-0 flex-1 truncate text-sm">{person.display_name}</span>{person.whiteboard_open?<span className="text-[10px] text-cyan-300">داخل السبورة</span>:null}{person.focus_mode?<Target className="size-4 shrink-0 text-cyan-300" aria-label="Focus mode"/>:null}{speaker?<Headphones className="size-4 shrink-0 text-violet-300"/>:null}</button>{speaker&&person.user_id!==userId?<div className="mt-2 flex items-center gap-2 ps-6"><button type="button" onClick={()=>setMutedUserIds(list=>list.includes(person.user_id)?list.filter(id=>id!==person.user_id):[...list,person.user_id])} className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/5" aria-label={muted?'Unmute member':'Mute member'}>{muted?<VolumeX className="size-4"/>:<Volume2 className="size-4"/>}</button><input type="range" min="0" max="100" step="5" value={volumes[person.user_id]??100} onChange={e=>setVolumes(values=>({...values,[person.user_id]:Number(e.target.value)}))} className="min-w-0 flex-1 accent-violet-500" aria-label={'Volume '+person.display_name}/><span className="w-8 text-end text-[10px] tabular-nums">{volumes[person.user_id]??100}%</span></div>:null}</div>})}</div></Card></div>:null}
   {invitations.filter(i=>i.session_id!==id).map(inv=><div key={inv.invitation_id} className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"><Card className="w-full max-w-sm border-violet-400/30 bg-[#111333] p-5"><div className="mb-3 flex items-center gap-2 text-violet-300"><Users className="size-5"/><strong>{t('sessions.phase2.invitation.title')}</strong></div><p className="text-sm">{inv.title}</p><div className="mt-4 flex flex-col gap-2"><Button onClick={()=>respondInvitation(inv,true)}>{t('sessions.phase2.invitation.join')}</Button><Button variant="outline" onClick={()=>respondInvitation(inv,false)}><X className="me-2 size-4"/>{t('sessions.phase2.invitation.keepSolo')}</Button></div></Card></div>)}
  </main>
