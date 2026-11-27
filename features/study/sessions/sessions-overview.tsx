@@ -77,7 +77,7 @@ export function SessionsOverview(){
  useEffect(()=>{
   let alive=true
   setLoading(true);setError(null)
-  Promise.all([listMySharedSessions(),listMyStudyCommunities()]).then(async([sessions,communities])=>{
+  Promise.all([listMySharedSessions().catch(()=>[]),listMyStudyCommunities()]).then(async([sessions,communities])=>{
    const groupSessions=await Promise.all(communities.map(community=>listVisibleSharedStudySessions(community.id).catch(()=>[])))
    if(!alive)return
    const merged=new Map<string,Row>()
