@@ -99,7 +99,7 @@ function studySessionDeviceId(): string {
 }
 
 export async function createSharedStudySession(input: SharedSessionCreateInput): Promise<string> {
-  const result = await cloudRest<string>('rpc/create_study_session', {
+  const result = await cloudRest<unknown>('rpc/create_study_session', {
     method: 'POST',
     body: JSON.stringify({
       p_group_id: input.communityId,
@@ -116,7 +116,13 @@ export async function createSharedStudySession(input: SharedSessionCreateInput):
       p_goals: input.goals ?? [],
     }),
   })
-  return result
+  if(typeof result==='string')return result
+  if(result&&typeof result==='object'){
+    const row=result as Record<string,unknown>
+    const id=row.id??row.session_id??row.create_study_session
+    if(typeof id==='string'&&id.length>0)return id
+  }
+  throw new Error('SESSION_CREATE_INVALID_RESPONSE')
 }
 
 export async function joinSharedStudySession(sessionId: string) {
