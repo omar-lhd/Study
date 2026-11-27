@@ -61,31 +61,32 @@ Deno.serve(async (req: Request) => {
     return reply({ error: "INVALID_SESSION_ID" }, 400);
   }
 
-  const { data: session, error: sessionError } = await supabase
-    .from("study_sessions")
-    .select("id,status,allow_audio,planned_duration_seconds")
-    .eq("id", sessionId)
-    .maybeSingle();
-  if (sessionError || !session) return reply({ error: "SESSION_NOT_FOUND_OR_FORBIDDEN" }, 404);
-  if (!session.allow_audio || !["active", "paused"].includes(session.status)) return reply({ error: "AUDIO_NOT_AVAILABLE" }, 409);
-
-  const { data: participant, error: participantError } = await supabase
-    .from("study_session_participants")
-    .select("id,attendance_state")
-    .eq("session_id", sessionId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (participantError || !participant || participant.attendance_state !== "present") {
+  // Table SELECT policies can hide a group session before the member joins.
+  // The snapshot RPC applies the same membership rules without requiring a prior participant row.
+  const { data: snapshot, error: snapshotError } = await supabase.rpc("get_study_session_snapshot", {
+    p_session_id: sessionId,
+  });
+  if (snapshotError || !snapshot) {
+    console.warn("agora-rtc-token snapshot authorization failed", snapshotError?.code ?? "NO_SNAPSHOT");
+    return reply({ error: "SESSION_ACCESS_DENIED" }, 403);
+  }
+  if (!snapshot.is_present || !snapshot.participant_id) {
     return reply({ error: "PRESENT_PARTICIPANT_REQUIRED" }, 403);
+  }
+  if (!snapshot.allow_audio || !["active", "paused"].includes(snapshot.status)) {
+    return reply({ error: "AUDIO_NOT_AVAILABLE" }, 409);
   }
 
   const { data: seat, error: seatError } = await supabase
     .from("study_session_speaker_seats")
     .select("seat_number")
     .eq("session_id", sessionId)
-    .eq("participant_id", participant.id)
+    .eq("participant_id", snapshot.participant_id)
     .maybeSingle();
-  if (seatError) return reply({ error: "SEAT_LOOKUP_FAILED" }, 500);
+  if (seatError) {
+    console.warn("agora-rtc-token seat lookup failed", seatError.code);
+    return reply({ error: "SEAT_LOOKUP_FAILED" }, 500);
+  }
   if (intent === "publish_audio" && !seat) return reply({ error: "SPEAKER_SEAT_REQUIRED" }, 403);
 
   const channelName = `study_${sessionId.replaceAll("-", "")}`;
