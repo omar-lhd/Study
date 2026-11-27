@@ -356,35 +356,37 @@ body:has(.study-session-room) [data-app-main] {
 .study-session-room {
   position: relative !important;
   isolation: isolate;
+  display: grid !important;
   height: 100dvh !important;
   min-height: 0 !important;
   max-width: none !important;
-  grid-template-rows: auto auto minmax(6.75rem, 1fr) auto auto auto auto;
+  grid-template-columns: minmax(0,1fr);
+  grid-template-rows: auto auto auto minmax(6rem,1fr) minmax(7rem,auto) auto auto auto;
   grid-template-areas:
     "header"
     "goal"
+    "personal-note"
     "timer"
     "seats"
     "listeners"
-    "personal"
+    "personal-actions"
     "tools"
     "controls";
+  gap: .4rem !important;
   overflow: hidden !important;
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
-  padding: max(.45rem,env(safe-area-inset-top)) .75rem max(.4rem,env(safe-area-inset-bottom)) !important;
+  padding: max(.35rem,env(safe-area-inset-top)) .75rem max(.35rem,env(safe-area-inset-bottom)) !important;
   background:
     radial-gradient(ellipse at 16% 18%,rgba(15,95,190,.12),transparent 42%),
     radial-gradient(ellipse at 88% 78%,rgba(123,35,212,.16),transparent 45%),
     #050615;
 }
-.study-room-header { grid-area: header; z-index: 2; min-height: 2.65rem; }
+.study-room-header { grid-area: header; z-index: 2; min-height: 2.6rem; }
 .study-room-goal { grid-area: goal; z-index: 2; }
+.study-room-personal-status { grid-area: personal-note; z-index: 2; }
 .study-room-timer { grid-area: timer; z-index: 1; }
 .study-room-seats { grid-area: seats; z-index: 2; }
 .study-room-listeners { grid-area: listeners; z-index: 2; }
-.study-room-personal-status { grid-area: personal; z-index: 2; }
-.study-room-personal-actions { grid-area: personal; justify-self: end; align-self: center; }
+.study-room-personal-actions { grid-area: personal-actions; justify-self: center; align-self: center; }
 .study-room-tools { grid-area: tools; z-index: 2; }
 .study-room-controls { grid-area: controls; z-index: 5; }
 .study-session-atmosphere {
@@ -431,42 +433,48 @@ body:has(.study-session-room) [data-app-main] {
   50% { transform:rotate(25deg) translate(2px,-2px); }
 }
 @media (max-height: 740px) and (orientation: portrait) {
-  .study-session-room { gap: .35rem !important; padding-top: max(.25rem,env(safe-area-inset-top)) !important; }
-  .study-room-header { min-height: 2.35rem; }
-  .study-room-goal { padding: .5rem !important; }
-  .study-room-timer { min-height: 6.25rem; }
-  .study-room-seats { gap: .15rem .35rem !important; }
-  .study-room-seats button { gap: .15rem !important; }
-  .study-room-seats button > span:first-child { font-size: .72rem; }
-  .study-room-listeners { padding: .4rem !important; }
-  .study-room-listeners > button:last-child { min-height: 2.25rem !important; margin-top: .25rem !important; }
-  .study-room-tools button { min-height: 2.5rem !important; padding-block: .25rem !important; }
-  .study-room-controls { padding: .35rem !important; }
-  .study-room-controls button { min-height: 2.85rem !important; }
+  .study-session-room {
+    grid-template-rows: auto auto auto minmax(5.5rem,1fr) minmax(5.2rem,auto) auto auto auto;
+    gap: .25rem !important;
+    padding-top: max(.2rem,env(safe-area-inset-top)) !important;
+  }
+  .study-room-header { min-height: 2.2rem; }
+  .study-room-goal,.study-room-personal-status { padding: .4rem !important; }
+  .study-room-timer > div { width: min(30vh,10.5rem) !important; height: min(30vh,10.5rem) !important; }
+  .study-room-seats { gap: 0 .3rem !important; }
+  .study-room-seats button { gap: 0 !important; padding-block: .1rem !important; }
+  .study-room-seats button > span:first-child { width: min(9vh,3.65rem) !important; height: min(9vh,3.65rem) !important; }
+  .study-room-listeners { padding: .35rem !important; }
+  .study-room-listeners > button:last-child { min-height: 2.1rem !important; margin-top: .2rem !important; }
+  .study-room-personal-actions button { width: 2rem; height: 2rem; }
+  .study-room-tools button { min-height: 2.3rem !important; padding-block: .15rem !important; }
+  .study-room-controls { padding: .3rem !important; }
+  .study-room-controls button { min-height: 2.55rem !important; height: 2.55rem !important; }
 }
 @media (orientation: landscape) and (max-height: 600px) {
   .study-session-room {
     grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr);
-    grid-template-rows: auto auto minmax(0,1fr) auto auto auto;
+    grid-template-rows: auto auto auto minmax(0,1fr) auto auto auto;
     grid-template-areas:
       "header header"
       "goal goal"
+      "personal-note personal-note"
       "timer seats"
       "listeners listeners"
-      "personal tools"
+      "personal-actions tools"
       "controls controls";
-    gap: .35rem !important;
-    padding-inline: .65rem !important;
+    gap: .25rem !important;
+    padding-inline: .55rem !important;
   }
-  .study-room-timer > div { width: min(42vh,14rem) !important; height: min(42vh,14rem) !important; }
+  .study-room-timer > div { width: min(34vh,12rem) !important; height: min(34vh,12rem) !important; }
   .study-room-seats { grid-template-columns: repeat(3,minmax(0,1fr)); align-content: center; }
-  .study-room-seats button > span:first-child { width: min(17vh,4.5rem) !important; height: min(17vh,4.5rem) !important; }
+  .study-room-seats button > span:first-child { width: min(16vh,4.25rem) !important; height: min(16vh,4.25rem) !important; }
   .study-room-listeners { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
   .study-room-listeners > button:last-child { margin-top: 0 !important; width: auto; min-width: 42%; }
   .study-room-personal-actions { justify-self: start; }
   .study-room-tools { grid-template-columns: repeat(4,minmax(0,1fr)); }
-  .study-room-tools button { min-height: 2.4rem !important; padding-block: .25rem !important; }
-  .study-room-controls button { min-height: 2.65rem !important; }
+  .study-room-tools button { min-height: 2.25rem !important; padding-block: .15rem !important; }
+  .study-room-controls button { min-height: 2.45rem !important; height: 2.45rem !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .study-session-atmosphere,
