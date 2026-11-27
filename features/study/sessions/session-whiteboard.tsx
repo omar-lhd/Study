@@ -86,6 +86,7 @@ function drawElement(ctx:CanvasRenderingContext2D,element:PreviewElement){
   ctx.restore()
 }
 
+const drawingLayers=new WeakMap<HTMLCanvasElement,HTMLCanvasElement>()
 function renderBoard(canvas:HTMLCanvasElement,settings:WhiteboardSettings,elements:PreviewElement[],preview?:PreviewElement){
   const ctx=canvas.getContext('2d')
   if(!ctx)return
@@ -109,8 +110,16 @@ function renderBoard(canvas:HTMLCanvasElement,settings:WhiteboardSettings,elemen
     }
     ctx.restore()
   }
-  for(const element of elements)drawElement(ctx,element)
-  if(preview)drawElement(ctx,preview)
+  let layer=drawingLayers.get(canvas)
+  if(!layer){layer=document.createElement('canvas');drawingLayers.set(canvas,layer)}
+  if(layer.width!==canvas.width)layer.width=canvas.width
+  if(layer.height!==canvas.height)layer.height=canvas.height
+  const layerCtx=layer.getContext('2d')
+  if(!layerCtx)return
+  layerCtx.clearRect(0,0,layer.width,layer.height)
+  for(const element of elements)drawElement(layerCtx,element)
+  if(preview)drawElement(layerCtx,preview)
+  ctx.drawImage(layer,0,0)
 }
 
 export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;userId:string|null;onClose:()=>void}){
@@ -252,13 +261,16 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
       strokeRef.current.points.push(point)
       const ctx=event.currentTarget.getContext('2d')
       if(ctx&&previous){
-        ctx.save()
-        ctx.strokeStyle=strokeRef.current.color
-        ctx.lineWidth=strokeRef.current.width
-        ctx.lineCap='round';ctx.lineJoin='round'
-        if(strokeRef.current.eraser)ctx.globalCompositeOperation='destination-out'
-        ctx.beginPath();ctx.moveTo(previous.x,previous.y);ctx.lineTo(point.x,point.y);ctx.stroke()
-        ctx.restore()
+        if(strokeRef.current.eraser){
+          renderBoard(event.currentTarget,settings,elements,{element_type:'stroke',data:{points:strokeRef.current.points,color:strokeRef.current.color,width:strokeRef.current.width,eraser:true}})
+        }else{
+          ctx.save()
+          ctx.strokeStyle=strokeRef.current.color
+          ctx.lineWidth=strokeRef.current.width
+          ctx.lineCap='round';ctx.lineJoin='round'
+          ctx.beginPath();ctx.moveTo(previous.x,previous.y);ctx.lineTo(point.x,point.y);ctx.stroke()
+          ctx.restore()
+        }
       }
       lastPointRef.current=point
     }else if(shapeRef.current){
