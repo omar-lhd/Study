@@ -156,7 +156,7 @@ export function SessionRoom({id}:{id:string}){
  const goalPercent=goals.length?Math.round(completedGoals/goals.length*100):0
  const isFocus=mode==='focus'
  return <>
-  <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onStatus={handleRtcStatus}/>
+  <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} audioAvailable={snapshot.allow_audio&&(snapshot.status==='active'||snapshot.status==='paused')} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onStatus={handleRtcStatus}/>
   <main className="study-session-room mx-auto flex h-[100dvh] min-h-0 w-full max-w-none flex-col gap-2 overflow-y-auto px-3 pt-3 pb-2 sm:gap-3">
   <div className="flex items-center justify-between gap-3">
    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
