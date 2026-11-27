@@ -77,7 +77,6 @@ export function SessionRoom({id}:{id:string}){
 
  const refresh=useCallback(async()=>{
   await completeExpiredSharedStudySession(id).catch(()=>false)
-  await completeExpiredSharedStudySession(id).catch(()=>false)
   await cleanupSharedSessionPresence(id).catch(()=>0)
   await expireSharedSessionVotes(id).catch(()=>0)
   const [s,p,g,c,r,ss,inv,u,pauses,times,ev]=await Promise.all([
