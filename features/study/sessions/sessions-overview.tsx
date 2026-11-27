@@ -93,7 +93,7 @@ export function SessionsOverview(){
  const grouped=groups[tab]
  const trigger=<Button onClick={()=>{}}><Plus className="size-4"/>{t('sessions.create')}</Button>
  return <div className="space-y-5">
-  <PageHeader title={t('study.title')} description={t('study.description')} actions={<div className="flex items-center gap-2"><Button variant="outline" size="icon" aria-label="تحديث الجلسات" onClick={()=>setRefresh(v=>v+1)}><RefreshCw className={cn('size-4',loading&&'animate-spin')}/></Button><SharedSessionCreateDialog trigger={trigger}/></div>}/>
+  <PageHeader title={t('study.title')} description={t('study.description')} actions={<div className="flex items-center gap-2"><Button variant="outline" size="sm" className="size-10 px-0" aria-label="تحديث الجلسات" onClick={()=>setRefresh(v=>v+1)}><RefreshCw className={cn('size-4',loading&&'animate-spin')}/></Button><SharedSessionCreateDialog trigger={trigger}/></div>}/>
   <Card variant="panel" className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-card/70 to-cyan-500/5">
    <div className="flex flex-wrap items-center justify-between gap-3">
     <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-primary/15 text-primary"><Users className="size-5"/></span><div><p className="font-semibold">{t('sessions.phase2.live')}</p><p className="text-xs text-muted-foreground">{communityCount} · {t('sessions.phase2.community')}</p></div></div>
