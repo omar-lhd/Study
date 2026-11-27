@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Check, ChevronDown, Headphones, Grid3X3, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, ChevronDown, Headphones, Grid3X3, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X, Coffee, Toilet, MessagesSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -16,8 +16,8 @@ import {
  setSharedStudySessionState,requestSharedPause,voteSharedPause,requestSharedSpeakerSeat,respondSharedSpeakerSeat,
  respondSharedSessionInvitation,listMyPendingSharedSessionInvitations,listSharedSessionParticipants,
  listSharedSessionGoals,addSharedSessionGoal,updateSharedSessionGoal,listSharedSessionChat,sendSharedSessionChat,
- listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,cleanupSharedSessionPresence,expireSharedSessionVotes,getCloudCurrentUser,useNow,useSessionFormatters,
- type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal,type SessionEvent,type SessionPauseRequest,type SessionTimeChangeRequest
+ listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,setMySessionPersonalStatus,completeExpiredSharedStudySession,cleanupSharedSessionPresence,expireSharedSessionVotes,getCloudCurrentUser,useNow,useSessionFormatters,
+ type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal,type SessionEvent,type PersonalSessionStatus,type SessionPauseRequest,type SessionTimeChangeRequest
 } from './use-sessions'
 import { AgoraAudio } from './agora-audio'
 import { SessionWhiteboard } from './session-whiteboard'
@@ -54,6 +54,7 @@ export function SessionRoom({id}:{id:string}){
  const [showPauseConfirm,setShowPauseConfirm]=useState(false)
  const [showPauseVote,setShowPauseVote]=useState(false)
  const [showTimerAdjust,setShowTimerAdjust]=useState(false)
+ const [notice,setNotice]=useState<string|null>(null)
  const [micEnabled,setMicEnabled]=useState(false)
  const [muteAll,setMuteAll]=useState(false)
  const [mutedUserIds,setMutedUserIds]=useState<string[]>([])
@@ -75,6 +76,7 @@ export function SessionRoom({id}:{id:string}){
  const presentParticipants=participants.filter(p=>p.attendance_state==='present')
 
  const refresh=useCallback(async()=>{
+  await completeExpiredSharedStudySession(id).catch(()=>false)
   await cleanupSharedSessionPresence(id).catch(()=>0)
   await expireSharedSessionVotes(id).catch(()=>0)
   const [s,p,g,c,r,ss,inv,u,pauses,times,ev]=await Promise.all([
@@ -107,6 +109,8 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{if(current){setMode(current.focus_mode?'focus':'collaboration');setMuteAll(current.focus_mode)}},[current?.focus_mode])
  useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
  const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null);if(status==='error')setMicEnabled(false)},[])
+ const handleVolumes=useCallback((levels:Record<string,number>)=>setVolumes(levels),[])
+ const changePersonalStatus=async(status:PersonalSessionStatus)=>{try{await setMySessionPersonalStatus(id,status);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PERSONAL_STATUS_FAILED')}}
  function eventLabel(event:SessionEvent){
   const targetId=typeof event.payload.participant_id==='string'?event.payload.participant_id:typeof event.payload.user_id==='string'?event.payload.user_id:typeof event.payload.target_participant_id==='string'?event.payload.target_participant_id:null
   const target=targetId?participants.find(person=>person.id===targetId||person.user_id===targetId):undefined
@@ -130,6 +134,7 @@ export function SessionRoom({id}:{id:string}){
    case 'session.time_changed':return 'تم تعديل وقت الجلسة'
    case 'session.time_change_rejected':return 'تم رفض تعديل الوقت'
    case 'session.focus_changed':return actor+(event.payload.focus_mode===true?' فعّل وضع التركيز':' أوقف وضع التركيز')
+    case 'participant.personal_status':return actor+(event.payload.status==='coffee'?' خرج لشرب القهوة':event.payload.status==='restroom'?' ذهب لدورة المياه':event.payload.status==='quick_talk'?' خرج لمحادثة قصيرة':' عاد للجلسة')
    case 'participant.whiteboard_opened':return targetName+' داخل السبورة'
    case 'participant.whiteboard_closed':return targetName+' خرج من السبورة'
    default:return actor+' قام بتحديث الجلسة'
@@ -155,10 +160,10 @@ export function SessionRoom({id}:{id:string}){
  if(loading)return <div className="mx-auto max-w-5xl p-4"><Card className="p-8 text-center text-sm text-muted-foreground">{t('sessions.phase2.room.loading')}</Card></div>
  if(error||!snapshot)return <div className="mx-auto max-w-4xl space-y-4 p-4"><Link href="/study" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="size-4 rtl:rotate-180"/>{t('sessions.room.back')}</Link><Card className="border-danger/30 p-5"><p className="font-semibold">{t('sessions.loadError.title')}</p><p className="mt-2 text-sm text-muted-foreground">{t('sessions.phase2.room.loadError')}</p><Button className="mt-4" variant="outline" onClick={()=>refresh().then(()=>setError(null)).catch(e=>setError(String(e)))}>{t('common.retry')}</Button></Card></div>
  const completedGoals=goals.filter(g=>g.completed).length
- const goalPercent=goals.length?Math.round(completedGoals/goals.length*100):0
+ const goalPercent=Math.min(100,Math.round((elapsed/Math.max(1,snapshot.planned_duration_seconds))*100))
  const isFocus=mode==='focus'
  return <>
-  <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} audioAvailable={snapshot.allow_audio&&(snapshot.status==='active'||snapshot.status==='paused')} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onStatus={handleRtcStatus}/>
+  <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} audioAvailable={snapshot.allow_audio&&(snapshot.status==='active'||snapshot.status==='paused')} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onVolumes={handleVolumes} onStatus={handleRtcStatus}/>
   <main className="study-session-room mx-auto flex h-[100dvh] min-h-0 w-full max-w-none flex-col gap-2 overflow-y-auto px-3 pt-3 pb-2 sm:gap-3">
   <div className="flex items-center justify-between gap-3">
    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
