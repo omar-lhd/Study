@@ -16,7 +16,7 @@ import {
  setSharedStudySessionState,requestSharedPause,voteSharedPause,requestSharedSpeakerSeat,respondSharedSpeakerSeat,
  respondSharedSessionInvitation,listMyPendingSharedSessionInvitations,listSharedSessionParticipants,
  listSharedSessionGoals,addSharedSessionGoal,updateSharedSessionGoal,listSharedSessionChat,sendSharedSessionChat,
- listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,setMySessionPersonalStatus,completeExpiredSharedStudySession,cleanupSharedSessionPresence,expireSharedSessionVotes,getCloudCurrentUser,useNow,useSessionFormatters,
+ listSharedSessionSeatRequests,getSharedSessionSeatAssignments,addSharedSpeakerSeat,releaseSharedSpeakerSeat,listSharedSessionEvents,listSharedSessionPauseRequests,listSharedSessionTimeChangeRequests,proposeSharedSessionTimeChange,voteSharedSessionTimeChange,subscribeSharedSessionRealtime,setMyFocusMode,setMySessionPersonalStatus,completeExpiredSharedStudySession,requestSharedSessionResume,completeSharedSessionResume,cleanupSharedSessionPresence,expireSharedSessionVotes,getCloudCurrentUser,useNow,useSessionFormatters,
  type SharedSessionSnapshot,type LiveSessionParticipant,type LiveSessionGoal,type SessionEvent,type PersonalSessionStatus,type SessionPauseRequest,type SessionTimeChangeRequest
 } from './use-sessions'
 import { AgoraAudio } from './agora-audio'
@@ -147,6 +147,10 @@ export function SessionRoom({id}:{id:string}){
  const [showPauseVote,setShowPauseVote]=useState(false)
  const [showTimerAdjust,setShowTimerAdjust]=useState(false)
  const [notice,setNotice]=useState<string|null>(null)
+ const audioContextRef=useRef<AudioContext|null>(null)
+ const previousStatusRef=useRef<SharedSessionSnapshot['status']|null>(null)
+ const lastCountdownSecondRef=useRef<number|null>(null)
+ const completedResumeRef=useRef<string|null>(null)
  const [micEnabled,setMicEnabled]=useState(false)
  const [muteAll,setMuteAll]=useState(false)
  const [mutedUserIds,setMutedUserIds]=useState<string[]>([])
@@ -156,9 +160,10 @@ export function SessionRoom({id}:{id:string}){
  const [rtcError,setRtcError]=useState<string|null>(null)
  const [timeDelta,setTimeDelta]=useState(600)
  const [panel,setPanel]=useState<'goals'|'chat'|'history'|'notes'|'board'>('goals')
- const now=useNow(1000,snapshot?.status==='active'||pauseRequests.length>0||timeRequests.length>0)
+ const now=useNow(1000,snapshot?.status==='active'||Boolean(snapshot?.resume_at)||pauseRequests.length>0||timeRequests.length>0)
  const elapsed=useMemo(()=>snapshot?Math.max(0,snapshot.accumulated_study_seconds+(snapshot.status==='active'&&snapshot.server_now?Math.floor((now-new Date(snapshot.server_now).getTime())/1000):0)):0,[snapshot,now])
  const remaining=snapshot?Math.max(0,snapshot.planned_duration_seconds-elapsed):0
+ const countdownSeconds=snapshot?.status==='paused'&&snapshot.resume_at?Math.max(0,Math.ceil((new Date(snapshot.resume_at).getTime()-now)/1000)):null
  const uploadChatImage=async(file:File)=>{
   if(!userId)return
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){toast.error('نوع أو حجم الصورة غير مسموح');return}
@@ -227,6 +232,37 @@ export function SessionRoom({id}:{id:string}){
   return()=>{clearInterval(heartbeat);clearInterval(sync);window.removeEventListener('online',online);window.removeEventListener('offline',offline)}
  },[id,current?.attendance_state,refresh])
  useEffect(()=>{leaveStartedRef.current=false;return()=>{if(!leaveStartedRef.current){leaveStartedRef.current=true;void leaveSharedStudySession(id).catch(()=>{})}}},[id])
+ useEffect(()=>{
+  if(!snapshot)return
+  const previous=previousStatusRef.current
+  if(previous&&previous!==snapshot.status){
+   const message=snapshot.status==='paused'?'تم إيقاف الجلسة مؤقتًا':snapshot.status==='active'?'تم استئناف الجلسة':'انتهت الجلسة'
+   setNotice(message);playSessionTone(snapshot.status==='active'?780:520,.065)
+  }
+  previousStatusRef.current=snapshot.status
+ },[snapshot?.status,playSessionTone])
+ useEffect(()=>{
+  if(!notice)return
+  const timer=window.setTimeout(()=>setNotice(null),2600)
+  return()=>window.clearTimeout(timer)
+ },[notice])
+ useEffect(()=>{
+  const resumeAt=snapshot?.resume_at
+  if(snapshot?.status!=='paused'||!resumeAt){
+   lastCountdownSecondRef.current=null
+   completedResumeRef.current=null
+   return
+  }
+  const seconds=Math.max(0,Math.ceil((new Date(resumeAt).getTime()-now)/1000))
+  if(seconds>0&&lastCountdownSecondRef.current!==seconds){
+   lastCountdownSecondRef.current=seconds
+   playSessionTone(seconds===10?590:seconds<=3?850:710,seconds<=3?.07:.045)
+  }
+  if(seconds===0&&completedResumeRef.current!==resumeAt){
+   completedResumeRef.current=resumeAt
+   void completeSharedSessionResume(id).then(()=>refresh()).catch(error=>toast.error(error instanceof Error?error.message:'SESSION_RESUME_FAILED'))
+  }
+ },[snapshot?.status,snapshot?.resume_at,now,id,playSessionTone,refresh])
  const realtimeRefresh=useCallback(()=>{void refresh().catch(()=>setConnected(false))},[refresh])
  useEffect(()=>{if(current?.attendance_state!=='present')return;return subscribeSharedSessionRealtime(id,realtimeRefresh)},[id,current?.attendance_state,realtimeRefresh])
  useEffect(()=>{if(pauseRequests.length>0)setShowPauseVote(true);else setShowPauseVote(false)},[pauseRequests.length])
@@ -234,6 +270,28 @@ export function SessionRoom({id}:{id:string}){
  useEffect(()=>{if(current){setMode(current.focus_mode?'focus':'collaboration');setMuteAll(current.focus_mode)}},[current?.focus_mode])
  useEffect(()=>{if(!currentUserSeat)setMicEnabled(false)},[currentUserSeat?.seat_number])
  const handleRtcStatus=useCallback((status:'connecting'|'connected'|'disconnected'|'error',message?:string)=>{setRtcStatus(status);setRtcError(status==='error'?message??'AGORA_AUDIO_ERROR':null);if(status==='error')setMicEnabled(false)},[])
+ const primeSessionAudio=useCallback(()=>{
+  if(typeof window==='undefined')return
+  const AudioContextConstructor=window.AudioContext
+  if(!AudioContextConstructor)return
+  try{
+   if(!audioContextRef.current)audioContextRef.current=new AudioContextConstructor()
+   if(audioContextRef.current.state==='suspended')void audioContextRef.current.resume().catch(()=>{})
+  }catch{/* optional audio */}
+ },[])
+ const playSessionTone=useCallback((frequency=700,volume=.055)=>{
+  const context=audioContextRef.current
+  if(!context||context.state!=='running')return
+  try{
+   const oscillator=context.createOscillator(),gain=context.createGain()
+   oscillator.type='sine';oscillator.frequency.setValueAtTime(frequency,context.currentTime)
+   gain.gain.setValueAtTime(.0001,context.currentTime)
+   gain.gain.exponentialRampToValueAtTime(volume,context.currentTime+.018)
+   gain.gain.exponentialRampToValueAtTime(.0001,context.currentTime+.13)
+   oscillator.connect(gain);gain.connect(context.destination)
+   oscillator.start();oscillator.stop(context.currentTime+.14)
+  }catch{/* audio output is optional */}
+ },[])
  const handleVolumes=useCallback((levels:Record<string,number>)=>setVoiceLevels(levels),[])
  const changePersonalStatus=async(status:PersonalSessionStatus)=>{try{await setMySessionPersonalStatus(id,status);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'PERSONAL_STATUS_FAILED')}}
  function eventLabel(event:SessionEvent){
@@ -266,7 +324,20 @@ export function SessionRoom({id}:{id:string}){
   }
  }
 
- async function changeState(action:'start'|'pause'|'resume'|'complete'|'cancel'){try{await setSharedStudySessionState(id,action);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SESSION_ACTION_FAILED')}}
+ async function changeState(action:'start'|'pause'|'resume'|'complete'|'cancel'){
+  try{
+   primeSessionAudio()
+   if(action==='resume'){
+    await requestSharedSessionResume(id)
+    setNotice('سيتم استئناف الجلسة خلال 10 ثوانٍ')
+    playSessionTone(620,.06)
+    await refresh()
+   }else{
+    await setSharedStudySessionState(id,action)
+    await refresh()
+   }
+  }catch(e){toast.error(e instanceof Error?e.message:'SESSION_ACTION_FAILED')}
+ }
  async function sendChat(){const value=chatDraft.trim();if(!value||!userId)return;try{await sendSharedSessionChat(id,userId,value,crypto.randomUUID());setChatDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'CHAT_SEND_FAILED')}}
  async function addGoal(){const value=goalDraft.trim();if(!value||!userId)return;try{await addSharedSessionGoal(id,value,userId);setGoalDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'GOAL_ADD_FAILED')}}
  async function toggleGoal(goal:LiveSessionGoal){try{await updateSharedSessionGoal(goal.id,!goal.completed,userId||'');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'GOAL_UPDATE_FAILED')}}
@@ -288,7 +359,7 @@ export function SessionRoom({id}:{id:string}){
   const isFocus=mode==='focus'
   return <>
    <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} audioAvailable={snapshot.allow_audio&&(snapshot.status==='active'||snapshot.status==='paused')} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onVolumes={handleVolumes} onStatus={handleRtcStatus}/>
-  <main className="study-session-room mx-auto grid h-[100dvh] min-h-0 w-full max-w-none gap-2 px-3 pt-3 pb-2" data-session-status={snapshot.status}>
+  <main className="study-session-room mx-auto grid h-[100dvh] min-h-0 w-full max-w-none gap-2 px-3 pt-3 pb-2" data-session-status={snapshot.status} onPointerDownCapture={primeSessionAudio}>
    <div className="study-session-atmosphere" aria-hidden="true"/>
 
    <section className="study-room-timer relative flex min-h-0 cursor-pointer items-center justify-center overflow-hidden py-1" role="button" tabIndex={0} aria-label="Adjust session timer" onClick={()=>setShowTimerAdjust(true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowTimerAdjust(true)}}}>
@@ -352,7 +423,7 @@ export function SessionRoom({id}:{id:string}){
   {showSessionOptions?<div className="fixed inset-0 z-[79] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"><Card className="w-full max-w-md border-violet-400/30 bg-[#111333] p-4"><div className="mb-3 flex items-center justify-between"><strong className="flex items-center gap-2"><MoreHorizontal className="size-5 text-violet-300"/>إعدادات الجلسة</strong><button type="button" onClick={()=>setShowSessionOptions(false)} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close session options"><X className="size-4"/></button></div><div className="grid grid-cols-3 gap-2">
     <button type="button" onClick={()=>{setShowSessionOptions(false);void toggleFocusMode()}} className={cn('flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border text-xs',isFocus?'border-violet-400 bg-violet-500/20 text-violet-100':'border-white/10 bg-white/5')}><span className={cn('relative',isFocus&&'animate-[focusAim_1.4s_ease-in-out_infinite]')}><Target className="size-6"/></span>{isFocus?'إيقاف التركيز':'وضع التركيز'}</button>
     <button type="button" onClick={()=>setMuteAll(v=>!v)} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-xs">{muteAll?<VolumeX className="size-6"/>:<Volume2 className="size-6"/>}{muteAll?'تشغيل الصوت':'كتم الصوت'}</button>
-    {isModerator?<button type="button" onClick={()=>{setShowSessionOptions(false);void changeState(snapshot.status==='active'?'pause':'resume')}} disabled={!['active','paused'].includes(snapshot.status)} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-xs disabled:opacity-40">{snapshot.status==='active'?<Pause className="size-6"/>:<Play className="size-6"/>}{snapshot.status==='active'?'إيقاف مؤقت':'استئناف'}</button>:<button type="button" onClick={()=>{setShowSessionOptions(false);void askPause()}} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-xs"><Pause className="size-6"/>طلب إيقاف مؤقت</button>}
+    {snapshot.status==='paused'?<button type="button" onClick={()=>{setShowSessionOptions(false);void changeState('resume')}} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-500/10 text-xs"><Play className="size-6"/>استئناف للجميع</button>:isModerator&&snapshot.status==='active'?<button type="button" onClick={()=>{setShowSessionOptions(false);void changeState('pause')}} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-xs"><Pause className="size-6"/>إيقاف مؤقت</button>:isModerator&&snapshot.status==='scheduled'?<button type="button" onClick={()=>{setShowSessionOptions(false);void changeState('start')}} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-xs"><Play className="size-6"/>بدء الجلسة</button>:<button type="button" onClick={()=>{setShowSessionOptions(false);void askPause()}} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-xs"><Pause className="size-6"/>طلب إيقاف مؤقت</button>}
    </div><p className="mt-3 text-center text-[10px] text-slate-400">{isModerator?'تحكم المشرف في حالة الجلسة':'طلب الإيقاف يظهر للتصويت بين الموجودين'}</p></Card></div>:null}{showPauseConfirm?<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"><Card className="w-full max-w-sm border-violet-400/30 bg-[#111333] p-5"><div className="mb-2 flex items-center gap-2"><Pause className="size-5 text-violet-300"/><strong>هل تريد طلب إيقاف مؤقت؟</strong></div><p className="text-sm text-slate-300">سيظهر تصويت للجميع لمدة دقيقة، ويتوقف المؤقت عند موافقة الأغلبية.</p><div className="mt-4 grid grid-cols-2 gap-2"><Button variant="outline" onClick={()=>setShowPauseConfirm(false)}>لأ</Button><Button onClick={()=>void confirmPauseVote()}>آه، اطلب التصويت</Button>{isModerator?<Button className="col-span-2" variant="danger" onClick={()=>{setShowPauseConfirm(false);void changeState('pause')}}>إيقاف فوري للمشرف</Button>:null}</div></Card></div>:null}
   {showPauseVote&&pauseRequests.length>0?<div className="fixed inset-0 z-[81] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"><Card className="max-h-[80dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4"><div className="mb-3 flex items-center justify-between"><strong>تصويت إيقاف المؤقت</strong><button type="button" onClick={()=>setShowPauseVote(false)} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close pause vote"><X className="size-4"/></button></div>{pauseRequests.map(request=><div key={request.id} className="rounded-xl border border-white/10 p-3"><p className="text-sm">هل توافق على إيقاف المؤقت؟</p><p className="mt-1 text-xs text-muted-foreground">{request.yes_count} موافق · {request.no_count} رافض · {request.electorate.length} مشارك · متبقي {Math.max(0,Math.ceil((new Date(request.expires_at).getTime()-now)/1000))} ث</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{width:Math.min(100,Math.round((request.yes_count/request.electorate.length)*100))+'%'}}/></div><div className="mt-3 flex gap-2"><Button className="flex-1" onClick={()=>void votePause(request,'yes')}>آه</Button><Button className="flex-1" variant="outline" onClick={()=>void votePause(request,'no')}>لأ</Button></div></div>)}</Card></div>:null}
   {showTimerAdjust?<div className="fixed inset-0 z-[82] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"><Card className="max-h-[85dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4"><div className="mb-3 flex items-center justify-between"><strong className="flex items-center gap-2"><Timer className="size-5 text-violet-300"/>تعديل وقت الجلسة</strong><button type="button" onClick={()=>setShowTimerAdjust(false)} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close timer controls"><X className="size-4"/></button></div>{isModerator&&(snapshot.status==='active'||snapshot.status==='paused')?<><p className="text-sm text-slate-300">اختر الزيادة أو النقصان. لن يتغير الوقت إلا بعد موافقة نصف الأعضاء الآخرين المطلوبين.</p><div className="mt-3 grid grid-cols-3 gap-2"><Button variant="outline" onClick={()=>void proposeTimeChange(-900)}>-15 د</Button><Button variant="outline" onClick={()=>void proposeTimeChange(600)}>+10 د</Button><Button variant="outline" onClick={()=>void proposeTimeChange(3300)}>+55 د</Button></div><div className="mt-4 rounded-xl bg-white/5 p-3"><div className="flex justify-between text-sm"><span>تعديل مخصص</span><strong dir="ltr">{timeDelta/60>0?'+':''}{timeDelta/60} min</strong></div><input className="mt-3 w-full accent-violet-500" type="range" min="-480" max="480" step="5" value={timeDelta/60} onChange={e=>setTimeDelta(Number(e.target.value)*60)} aria-label="Custom session duration adjustment"/><Button className="mt-3 w-full" disabled={timeDelta===0} onClick={()=>void proposeTimeChange(timeDelta)}>طلب تعديل الوقت</Button></div></>:<p className="text-sm text-slate-300">طلبات تعديل الوقت تنتظر موافقتك هنا.</p>}{timeRequests.map(request=><div key={request.id} className="mt-3 rounded-xl border border-white/10 p-3"><p className="text-sm">{participants.find(person=>person.user_id===request.requested_by)?.display_name??'المشرف'} يريد {request.delta_seconds>0?'إضافة':'تقليل'} {Math.abs(request.delta_seconds)/60} دقيقة.</p><p className="mt-1 text-xs text-muted-foreground">{request.yes_count} موافق · {request.no_count} رافض · المطلوب {Math.ceil((request.electorate.length+1)/2)} من {request.electorate.length+1} · متبقي {Math.max(0,Math.ceil((new Date(request.expires_at).getTime()-now)/1000))} ث</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{width:Math.min(100,Math.round((request.yes_count/request.electorate.length)*100))+'%'}}/></div>{request.requested_by===userId?<p className="mt-3 text-xs text-cyan-200">طلبك — بانتظار موافقة الأعضاء</p>:<div className="mt-3 flex gap-2"><Button className="flex-1" onClick={()=>void voteTimeChange(request,'yes')}>آه</Button><Button className="flex-1" variant="outline" onClick={()=>void voteTimeChange(request,'no')}>لأ</Button></div>}</div>)}</Card></div>:null}
@@ -361,5 +432,6 @@ export function SessionRoom({id}:{id:string}){
   {showRoster?<div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"><Card className="max-h-[82dvh] w-full max-w-md overflow-y-auto border-violet-400/30 bg-[#111333] p-4" style={{transform:`translateY(${rosterOffset}px)`}}><div className="mb-3 flex items-center justify-between" onPointerDown={e=>{rosterDragStartRef.current={y:e.clientY,offset:rosterOffset};e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(rosterDragStartRef.current)setRosterOffset(Math.max(-120,Math.min(180,rosterDragStartRef.current.offset+e.clientY-rosterDragStartRef.current.y)))}} onPointerUp={()=>{rosterDragStartRef.current=null}} onPointerCancel={()=>{rosterDragStartRef.current=null}} style={{touchAction:"none",cursor:"grab"}}><strong className="text-base">{t('sessions.phase2.room.present')} · {snapshot.participant_count}</strong><button type="button" onClick={()=>{setShowRoster(false);setRosterOffset(0)}} className="grid size-9 place-items-center rounded-full bg-white/5" aria-label="Close participant list"><X className="size-4"/></button></div><p className="mb-3 text-xs text-muted-foreground">النقطة الخضراء = مقعد صوت · الصفراء = مستمع</p><div className="space-y-2">{presentParticipants.map(person=>{const speaker=seated.has(person.user_id);const muted=mutedUserIds.includes(person.user_id);return <div key={person.id} className="rounded-xl bg-white/[0.035] p-2"><button type="button" onClick={()=>speaker&&person.user_id!==userId?void requestSeat(person):undefined} className="flex w-full items-center gap-3 text-start"><span className={cn('grid size-7 shrink-0 place-items-center rounded-full text-white',speaker?'bg-emerald-500':'bg-amber-500')}>{speaker?<Mic className="size-3.5"/>:<MessageCircle className="size-3.5"/>}</span>{person.avatar_url?<img src={person.avatar_url} alt="" className="size-9 rounded-full object-cover"/>:<span className="grid size-9 place-items-center rounded-full bg-violet-500/20">{person.display_name.slice(0,1)}</span>}<span className="min-w-0 flex-1 truncate text-sm">{person.display_name}</span>{person.whiteboard_open?<span className="text-[10px] text-cyan-300">داخل السبورة</span>:null}{person.focus_mode?<Target className="size-4 shrink-0 text-cyan-300" aria-label="Focus mode"/>:null}{speaker?<Headphones className="size-4 shrink-0 text-violet-300"/>:null}</button>{speaker&&person.user_id!==userId?<div className="mt-2 flex items-center gap-2 ps-6"><button type="button" onClick={()=>setMutedUserIds(list=>list.includes(person.user_id)?list.filter(id=>id!==person.user_id):[...list,person.user_id])} className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/5" aria-label={muted?'Unmute member':'Mute member'}>{muted?<VolumeX className="size-4"/>:<Volume2 className="size-4"/>}</button><input type="range" min="0" max="100" step="5" value={volumes[person.user_id]??100} onChange={e=>setVolumes(values=>({...values,[person.user_id]:Number(e.target.value)}))} className="min-w-0 flex-1 accent-violet-500" aria-label={'Volume '+person.display_name}/><span className="w-8 text-end text-[10px] tabular-nums">{volumes[person.user_id]??100}%</span></div>:null}</div>})}</div></Card></div>:null}
   {invitations.filter(i=>i.session_id!==id).map(inv=><div key={inv.invitation_id} className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"><Card className="w-full max-w-sm border-violet-400/30 bg-[#111333] p-5"><div className="mb-3 flex items-center gap-2 text-violet-300"><Users className="size-5"/><strong>{t('sessions.phase2.invitation.title')}</strong></div><p className="text-sm">{inv.title}</p><div className="mt-4 flex flex-col gap-2"><Button onClick={()=>respondInvitation(inv,true)}>{t('sessions.phase2.invitation.join')}</Button><Button variant="outline" onClick={()=>respondInvitation(inv,false)}><X className="me-2 size-4"/>{t('sessions.phase2.invitation.keepSolo')}</Button></div></Card></div>)}
  </main>
+ {notice?<div className="pointer-events-none fixed left-1/2 top-16 z-[95] -translate-x-1/2 rounded-full border border-cyan-300/30 bg-[#101535]/95 px-4 py-2 text-sm font-semibold text-cyan-100 shadow-[0_8px_35px_rgba(34,211,238,.18)] backdrop-blur-xl">{notice}</div>:null}
  </>
 }
