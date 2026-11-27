@@ -93,7 +93,7 @@ export function SessionRoom({id}:{id:string}){
   if(!current||current.attendance_state!=='present')return
   const heartbeat=window.setInterval(()=>heartbeatSharedStudySession(id).then(()=>setConnected(true)).catch(()=>setConnected(false)),15000)
   const sync=window.setInterval(()=>refresh().catch(()=>setConnected(false)),10000)
-  const online=()=>{setConnected(true);refresh().catch(()=>setConnected(false))}
+  const online=()=>{setConnected(true);joinSharedStudySession(id).then(()=>refresh()).catch(()=>setConnected(false))}
   const offline=()=>setConnected(false)
   window.addEventListener('online',online);window.addEventListener('offline',offline)
   return()=>{clearInterval(heartbeat);clearInterval(sync);window.removeEventListener('online',online);window.removeEventListener('offline',offline)}
