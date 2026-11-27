@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
-import { ChevronLeft, ChevronRight, Eraser, Grid3X3, Pen, RotateCcw, Square, Type, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eraser, Grid3X3, Pen, RotateCcw, Square, Type, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -99,6 +99,8 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
   const [lineWidth,setLineWidth]=useState(5)
   const [textDraft,setTextDraft]=useState('')
   const [fontSize,setFontSize]=useState(30)
+  const [zoom,setZoom]=useState(0.55)
+  const viewportRef=useRef<HTMLDivElement|null>(null)
   const [loading,setLoading]=useState(true)
   const [ready,setReady]=useState(false)
   const [error,setError]=useState<string|null>(null)
@@ -137,6 +139,27 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
     if(!canvas)return
     renderBoard(canvas,settings,elements)
   },[settings,elements])
+
+  useEffect(()=>{
+    const viewport=viewportRef.current
+    if(!viewport)return
+    const fit=()=>{
+      const availableWidth=Math.max(160,viewport.clientWidth-32)
+      const availableHeight=Math.max(160,viewport.clientHeight-32)
+      setZoom(Math.max(0.25,Math.min(2.5,availableWidth/settings.width,availableHeight/settings.height)))
+    }
+    const observer=new ResizeObserver(fit)
+    observer.observe(viewport)
+    fit()
+    return()=>observer.disconnect()
+  },[settings.width,settings.height])
+
+  const changeZoom=(delta:number)=>setZoom(value=>Math.max(0.25,Math.min(2.5,Math.round((value+delta)*100)/100)))
+  const fitBoard=()=>{
+    const viewport=viewportRef.current
+    if(!viewport)return
+    setZoom(Math.max(0.25,Math.min(2.5,(viewport.clientWidth-32)/settings.width,(viewport.clientHeight-32)/settings.height)))
+  }
 
   useEffect(()=>{
     if(!ready||!userId)return
@@ -244,6 +267,12 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
       <label className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1 text-xs"><span>الحجم</span><input type="range" min="1" max="24" value={lineWidth} onChange={e=>setLineWidth(Number(e.target.value))} className="w-20 accent-violet-500"/><span className="w-4 tabular-nums">{lineWidth}</span></label>
       {tool==='text'?<><input value={textDraft} onChange={e=>setTextDraft(e.target.value)} placeholder="اكتب النص ثم اضغط على الصفحة" className="h-9 min-w-32 flex-1 rounded-lg border border-white/10 bg-[#10122d] px-2 text-xs"/><label className="flex items-center gap-1 text-xs"><span>حجم</span><input type="number" min="10" max="120" value={fontSize} onChange={e=>setFontSize(Number(e.target.value))} className="h-9 w-14 rounded-lg bg-[#10122d] px-1"/></label></>:null}
       <button type="button" onClick={undoOwnElement} className="grid size-9 place-items-center rounded-lg bg-white/5" aria-label="Undo last own element"><RotateCcw className="size-4"/></button>
+      <div className="ms-auto flex items-center gap-1 rounded-xl bg-white/5 p-1" aria-label="Canvas zoom controls">
+        <button type="button" onClick={()=>changeZoom(-0.1)} disabled={zoom<=0.25} className="grid size-8 place-items-center rounded-lg disabled:opacity-30" aria-label="Zoom out"><ZoomOut className="size-4"/></button>
+        <span className="min-w-12 text-center text-xs tabular-nums" dir="ltr">{Math.round(zoom*100)}%</span>
+        <button type="button" onClick={()=>changeZoom(0.1)} disabled={zoom>=2.5} className="grid size-8 place-items-center rounded-lg disabled:opacity-30" aria-label="Zoom in"><ZoomIn className="size-4"/></button>
+        <button type="button" onClick={fitBoard} className="grid size-8 place-items-center rounded-lg" aria-label="Fit page to screen"><Maximize2 className="size-4"/></button>
+      </div>
     </div>
     <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-[#0b0d27] px-3 py-2">
       <label className="flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-xs"><span>الصفحة</span><input type="color" value={settings.background} onChange={e=>setSettings(s=>({...s,background:e.target.value}))} className="size-7 bg-transparent p-0"/></label>
@@ -253,8 +282,10 @@ export function SessionWhiteboard({sessionId,userId,onClose}:{sessionId:string;u
       <label className="flex items-center gap-1 text-xs">W<input type="number" min="400" max="3000" step="100" value={settings.width} onChange={e=>setSettings(s=>({...s,width:Math.max(400,Math.min(3000,Number(e.target.value)||400))}))} className="h-9 w-16 rounded-lg bg-[#10122d] px-1"/></label>
       <label className="flex items-center gap-1 text-xs">H<input type="number" min="400" max="3000" step="100" value={settings.height} onChange={e=>setSettings(s=>({...s,height:Math.max(400,Math.min(3000,Number(e.target.value)||400))}))} className="h-9 w-16 rounded-lg bg-[#10122d] px-1"/></label>
     </div>
-    <div className="relative min-h-0 flex-1 overflow-hidden p-2 sm:p-4">
-      <canvas ref={canvasRef} className="h-full w-full touch-none rounded-xl border border-slate-300/20 shadow-2xl" style={{backgroundColor:settings.background,cursor:tool==='text'?'text':tool==='eraser'?'cell':'crosshair'}} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={()=>void onPointerUp()} onPointerCancel={()=>void onPointerUp()}/>
+    <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto overscroll-contain p-2 sm:p-4">
+      <div className="relative mx-auto" style={{width:settings.width*zoom,height:settings.height*zoom}}>
+        <canvas ref={canvasRef} className="absolute left-0 top-0 touch-none rounded-xl border border-slate-300/20 shadow-2xl" style={{width:settings.width*zoom,height:settings.height*zoom,backgroundColor:settings.background,cursor:tool==='text'?'text':tool==='eraser'?'cell':'crosshair'}} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={()=>void onPointerUp()} onPointerCancel={()=>void onPointerUp()}/>
+      </div>
       {loading?<div className="absolute inset-0 grid place-items-center bg-black/35 text-sm">جاري تحميل السبورة...</div>:null}
       {error?<div className="absolute inset-0 grid place-items-center bg-black/60 p-4 text-center text-sm text-rose-200">{error}<Button className="mt-3" onClick={()=>void refreshBoard()}>حاول تاني</Button></div>:null}
     </div>
