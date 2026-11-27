@@ -177,55 +177,6 @@ export function SessionRoom({id}:{id:string}){
   </section>
   
 <section className="study-room-seats grid min-h-0 shrink-0 grid-cols-3 gap-x-2 gap-y-1 px-1" aria-label="Six microphone seats">
-   {Array.from({length:6},(_,index)=>{
-    const seat=seats.find(item=>item.seat_number===index+1)
-    const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
-    return <button key={index} type="button" onClick={()=>{if(person){if(person.user_id===userId)setMicEnabled(v=>!v);else void requestSeat(person)}else void claimSeat()}} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-transparent bg-transparent py-1.5 text-center" aria-label={person?person.display_name:'Claim empty microphone seat'}>
-     <span className={cn('relative grid size-[5.5rem] place-items-center rounded-full border-2 p-1 shadow-[0_0_24px_rgba(65,110,255,.22)] sm:size-24',person?'border-cyan-400 bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600':'border-violet-400/40 bg-violet-500/10')}>
-      {person?.avatar_url?<img src={person.avatar_url} alt="" className="size-full rounded-full object-cover"/>:<span className="grid size-full place-items-center rounded-full bg-[#101334] text-violet-200">{person?person.display_name.slice(0,1):<Plus className="size-4"/>}</span>}
-      {person?<span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full border-2 border-[#090b25] bg-emerald-500 text-white shadow-lg">{(volumes[person.user_id]??0)>0.035?<span className="flex h-3 items-end gap-[2px]"><i className="w-[2px] animate-pulse rounded-full bg-white" style={{height:Math.max(3,(volumes[person.user_id]??0)*13)}}/><i className="w-[2px] animate-pulse rounded-full bg-white" style={{height:Math.max(4,(volumes[person.user_id]??0)*16),animationDelay:'90ms'}}/><i className="w-[2px] animate-pulse rounded-full bg-white" style={{height:Math.max(3,(volumes[person.user_id]??0)*11),animationDelay:'180ms'}}/></span>:<Mic className="size-3.5"/>}</span>:null}
-
-
-  <Card className="study-room-listeners shrink-0 border-violet-400/20 bg-[#0e1030]/80 p-2 shadow-[0_12px_38px_rgba(21,12,84,.25)] backdrop-blur-xl">
-   <button type="button" onClick={()=>setShowRoster(true)} className="flex w-full items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-sm font-medium">
-    <span className="flex min-w-0 items-center gap-2"><Users className="size-5 shrink-0 text-violet-300"/><span className="truncate">{t('sessions.phase2.room.listeners')} · {listeners.length}</span><span className="text-xs text-muted-foreground">({snapshot.participant_count})</span></span>
-    <ChevronDown className="size-4 shrink-0 text-slate-400"/>
-   </button>
-   <button type="button" onClick={()=>setShowRoster(true)} disabled={listeners.length===0} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-sm font-semibold text-white shadow-[0_8px_28px_rgba(70,72,255,.28)] disabled:opacity-45">
-    <Headphones className="size-5"/>{t('sessions.phase2.room.requestSeat')}
-   </button>
-  </Card>
-</div>
- if(error||!snapshot)return <div className="mx-auto max-w-4xl space-y-4 p-4"><Link href="/study" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="size-4 rtl:rotate-180"/>{t('sessions.room.back')}</Link><Card className="border-danger/30 p-5"><p className="font-semibold">{t('sessions.loadError.title')}</p><p className="mt-2 text-sm text-muted-foreground">{t('sessions.phase2.room.loadError')}</p><Button className="mt-4" variant="outline" onClick={()=>refresh().then(()=>setError(null)).catch(e=>setError(String(e)))}>{t('common.retry')}</Button></Card></div>
- const goalPercent=Math.min(100,Math.floor((elapsed/Math.max(1,snapshot.planned_duration_seconds))*100))
- const isFocus=mode==='focus'
- return <>
-  <AgoraAudio sessionId={id} userId={userId} participants={presentParticipants} audioAvailable={snapshot.allow_audio&&(snapshot.status==='active'||snapshot.status==='paused')} canPublish={Boolean(currentUserSeat)&&snapshot.allow_audio&&snapshot.status==='active'} micEnabled={micEnabled} mutedAll={muteAll} mutedUserIds={mutedUserIds} volumes={volumes} onVolumes={handleVolumes} onStatus={handleRtcStatus}/>
-  <main className="study-session-room mx-auto grid h-[100dvh] min-h-0 w-full max-w-none gap-2 px-3 pt-3 pb-2" data-session-status={snapshot.status}>
-   <div className="study-session-atmosphere" aria-hidden="true"/>
-   <div className="study-room-header flex min-w-0 items-center justify-between gap-3">
-    <Link href="/study" className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-200 shadow-lg backdrop-blur-xl"><ArrowLeft className="size-5 rtl:rotate-180"/></Link>
-    <div className="flex min-w-0 flex-1 items-center gap-3">
-     <div className="grid size-12 shrink-0 place-items-center rounded-2xl border border-violet-400/40 bg-gradient-to-br from-violet-600/30 to-blue-500/15 text-violet-300 shadow-[0_0_26px_rgba(109,66,255,.25)]"><Users className="size-6"/></div>
-     <div className="min-w-0"><h1 className="truncate text-base font-semibold">{snapshot.title}</h1><button type="button" onClick={()=>setShowRoster(true)} className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={cn('size-2 rounded-full',connected?'bg-emerald-400':'bg-rose-500')}/>{snapshot.status==='active'?'Live':snapshot.status==='paused'?'Paused':snapshot.status} · {snapshot.participant_count} {t('sessions.phase2.room.present')} · <span className={cn('text-[10px]',rtcStatus==='connected'?'text-emerald-300':rtcStatus==='error'?'text-rose-300':'text-slate-400')}>{rtcStatus==='connected'?'صوت متصل':rtcStatus==='connecting'?'جاري الاتصال':rtcStatus==='error'?'خطأ الصوت':'الصوت غير متصل'}</span></button></div>
-    </div>
-    <button type="button" onClick={()=>setShowSessionOptions(true)} className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#11132e]/75 text-slate-300" aria-label="Session options"><MoreHorizontal/></button>
-   </div>
-   <Card className="study-room-goal shrink-0 overflow-hidden border-violet-400/20 bg-gradient-to-r from-[#17143d]/95 via-[#111638]/90 to-[#25145a]/80 p-2 shadow-[0_14px_50px_rgba(26,12,92,.32)] backdrop-blur-2xl">
-    <div className="flex items-center gap-3"><Target className="size-7 shrink-0 text-violet-300"/><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm font-semibold"><span>{t('sessions.phase2.room.goals')}</span><span>{goalPercent}%</span></div><p className="mt-0.5 truncate text-xs text-slate-300">{goals.find(g=>!g.completed)?.text||snapshot.subject||snapshot.title}</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-black/25"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-cyan-400 transition-[width] duration-700 ease-out" style={{width:goalPercent+'%'}}/></div></div></div>
-   </Card>
-   {current?.personal_status?<Card className="study-room-personal-status border-cyan-300/30 bg-[#0b2040]/95 p-2 shadow-lg"><div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-cyan-100">{current.personal_status==='coffee'?<Coffee className="size-5"/>:current.personal_status==='restroom'?<Toilet className="size-5"/>:<MessagesSquare className="size-5"/>}<span>انت دلوقتي مشغول، خلصت؟</span></span><Button size="sm" variant="outline" onClick={()=>void changePersonalStatus(null)}>إيقاف</Button></div></Card>:null}
-   <section className="study-room-timer relative flex min-h-0 cursor-pointer items-center justify-center overflow-hidden py-1" role="button" tabIndex={0} aria-label="Adjust session timer" onClick={()=>setShowTimerAdjust(true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowTimerAdjust(true)}}}>
-    <div className="pointer-events-none absolute -inset-x-10 top-1/3 h-32 rotate-[-8deg] rounded-[50%] border-y border-cyan-400/20 bg-gradient-to-r from-transparent via-blue-500/10 to-violet-500/10 blur-xl"/>
-    <div className="relative grid size-[min(54vw,13rem)] place-items-center rounded-full bg-[conic-gradient(from_20deg,#10d9ff,#416dff,#8b40ff,#2c31d7,#10d9ff)] p-[5px] shadow-[0_0_55px_rgba(75,71,255,.38)] sm:size-56">
-     <div className="flex size-full flex-col items-center justify-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_35%,#141d51,#070a22_72%)] text-white">
-      <div className="mb-1 grid size-8 place-items-center rounded-full bg-blue-500/15 text-cyan-300">{snapshot.status==='active'?<Pause className="size-4"/>:<Play className="size-4"/>}</div>
-      <div className="text-[2.35rem] font-bold tracking-tight tabular-nums sm:text-4xl" dir="ltr">{clock(remaining)}</div>
-      <div className="mt-1 rounded-full bg-white/5 px-3 py-1 text-[10px] text-slate-300">{t('sessions.room.elapsed')} · {clock(elapsed)}</div>
-     </div>
-    </div>
-   </section>
-   <section className="study-room-seats grid min-h-0 shrink-0 grid-cols-3 gap-x-2 gap-y-1 px-1" aria-label="Six microphone seats">
     {Array.from({length:6},(_,index)=>{
      const seat=seats.find(item=>item.seat_number===index+1)
      const person=seat?presentParticipants.find(item=>item.user_id===seat.participant.user_id):null
@@ -252,7 +203,7 @@ export function SessionRoom({id}:{id:string}){
     <button type="button" onClick={()=>void changePersonalStatus(current?.personal_status==='restroom'?null:'restroom')} aria-pressed={current?.personal_status==='restroom'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='restroom'?'border-cyan-300 bg-cyan-400/20 text-cyan-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="دورة المياه"><Toilet className="size-4"/></button>
     <button type="button" onClick={()=>void changePersonalStatus(current?.personal_status==='quick_talk'?null:'quick_talk')} aria-pressed={current?.personal_status==='quick_talk'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='quick_talk'?'border-violet-300 bg-violet-400/20 text-violet-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="محادثة قصيرة"><MessagesSquare className="size-4"/></button>
    </div>
-<div className="study-room-tools grid shrink-0 grid-cols-4 gap-1.5">
+  <div className="study-room-tools grid shrink-0 grid-cols-4 gap-1.5">
    {(['goals','chat','notes','board'] as const).map(p=><button key={p} onClick={()=>{setPanel(p);setPanelOpen(true)}} className={cn('flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-[10px] font-medium',panel===p?'border-violet-400/40 bg-violet-500/15 text-violet-200':'border-white/10 bg-[#10122d]/80 text-slate-300')}><span className="text-violet-300">{p==='goals'?<Target/>:p==='chat'?<MessageCircle/>:p==='notes'?<BookOpen/>:<Grid3X3/>}</span>{t(('sessions.phase2.room.'+p) as MessageKey)}</button>)}
   </div>
   {panelOpen&&panel!=='board'?<div className="fixed inset-x-3 bottom-24 top-24 z-[65] flex flex-col gap-2 overflow-hidden"><div className="flex shrink-0 justify-end"><button type="button" onClick={()=>setPanelOpen(false)} className="grid size-9 place-items-center rounded-full border border-white/10 bg-[#111333]" aria-label="Close session panel"><X className="size-4"/></button></div><div className="min-h-0 flex-1 overflow-hidden">
