@@ -144,6 +144,19 @@ export async function expireSharedSessionVotes(sessionId:string) {
 export async function cleanupSharedSessionPresence(sessionId:string) {
  return cloudRest<number>('rpc/cleanup_stale_study_session_presence',{method:'POST',body:JSON.stringify({p_session_id:sessionId})})
 }
+export async function completeExpiredSharedStudySession(sessionId:string) {
+  return cloudRest<boolean>('rpc/complete_expired_study_session',{
+    method:'POST',body:JSON.stringify({p_session_id:sessionId})
+  })
+}
+
+export type PersonalSessionStatus='coffee'|'restroom'|'quick_talk'|null
+export async function setMySessionPersonalStatus(sessionId:string,status:PersonalSessionStatus) {
+  return cloudRest('rpc/set_my_session_personal_status',{
+    method:'POST',body:JSON.stringify({p_session_id:sessionId,p_status:status})
+  })
+}
+
 export async function getSharedStudySessionSnapshot(sessionId: string) {
   return cloudRest<SharedSessionSnapshot>('rpc/get_study_session_snapshot',{
     method:'POST',body:JSON.stringify({p_session_id:sessionId})
@@ -280,9 +293,9 @@ export async function listSharedStudySessions(groupId: string) {
 export async function listSharedSessionParticipants(sessionId: string) {
   const rows = await cloudRest<Array<{
     id:string;user_id:string;participant_role:LiveSessionParticipant['participant_role'];
-    attendance_state:LiveSessionParticipant['attendance_state'];focus_mode:boolean;whiteboard_open:boolean;
+    attendance_state:LiveSessionParticipant['attendance_state'];focus_mode:boolean;whiteboard_open:boolean;personal_status:PersonalSessionStatus;
   }>>(
-    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode,whiteboard_open&order=created_at.asc`
+    `study_session_participants?session_id=eq.${encodeURIComponent(sessionId)}&select=id,user_id,participant_role,attendance_state,focus_mode,whiteboard_open,personal_status&order=created_at.asc`
   )
   const ids = [...new Set(rows.map(row=>row.user_id))]
   const profiles = ids.length ? await cloudRest<Array<{id:string;display_name:string;avatar_url:string|null}>>(
@@ -291,7 +304,7 @@ export async function listSharedSessionParticipants(sessionId: string) {
   const byId = new Map(profiles.map(profile=>[profile.id,profile]))
   return rows.map(row=>({
     id:row.id,user_id:row.user_id,participant_role:row.participant_role,
-    attendance_state:row.attendance_state,focus_mode:row.focus_mode,whiteboard_open:row.whiteboard_open,
+    attendance_state:row.attendance_state,focus_mode:row.focus_mode,whiteboard_open:row.whiteboard_open,personal_status:row.personal_status,
     display_name:byId.get(row.user_id)?.display_name ?? 'Study member',
     avatar_url:byId.get(row.user_id)?.avatar_url ?? null
   }))
