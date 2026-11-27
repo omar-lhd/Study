@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, BookOpen, Check, ChevronDown, Headphones, Grid3X3, History as HistoryIcon, LogOut, MessageCircle, MicOff, MoreHorizontal, Pause, Play, Plus, Send, Target, Timer, Users, Volume2, VolumeX, Mic, X, Coffee, Toilet, MessagesSquare, ImagePlus, Pencil } from 'lucide-react'
@@ -55,7 +55,7 @@ function SessionImageDoodleEditor({imageUrl,onClose,onSend}:{imageUrl:string;onC
   image.src=imageUrl
   return()=>{cancelled=true;image.onload=null;image.onerror=null}
  },[imageUrl])
- const point=(event:React.PointerEvent<HTMLCanvasElement>)=>{
+ const point=(event:ReactPointerEvent<HTMLCanvasElement>)=>{
   const canvas=event.currentTarget,rect=canvas.getBoundingClientRect()
   return {x:(event.clientX-rect.left)*(canvas.width/rect.width),y:(event.clientY-rect.top)*(canvas.height/rect.height)}
  }
@@ -169,17 +169,26 @@ export function SessionRoom({id}:{id:string}){
  }
  const openChatImage=async(message:ChatMessage)=>{
   if(!message.storage_path)return
-  try{const url=await getSharedSessionImageUrl(message.storage_path);setViewingImage({messageId:message.id,path:message.storage_path,url});setImageDoodle(false)}
+  try{const url=await getSharedSessionImageUrl(message.storage_path);setViewingImage({messageId:message.id,path:message.storage_path,url})}
   catch(e){toast.error(e instanceof Error?e.message:'SESSION_IMAGE_LOAD_FAILED')}
  }
  const signChatImages=useCallback(async(rows:ChatMessage[])=>{
-  const images=rows.filter(row=>row.message_type==='image'&&row.storage_path&&!chatImageUrlMap[row.id])
+  const now=Date.now()
+  const images=rows.filter(row=>row.message_type==='image'&&row.storage_path&&
+   (!chatImageUrlMapRef.current[row.id]||chatImageUrlMapRef.current[row.id].expiresAt<now+60_000)&&
+   !signingImagesRef.current.has(row.id))
   if(!images.length)return
+  for(const image of images)signingImagesRef.current.add(image.id)
   try{
-   const pairs=await Promise.all(images.map(async row=>[row.id,await getSharedSessionImageUrl(row.storage_path!)] as const))
-   setChatImageUrlMap(current=>({...current,...Object.fromEntries(pairs)}))
-  }catch{/* signed URLs are refreshed the next room poll */}
- },[chatImageUrlMap])
+   const pairs=await Promise.all(images.map(async row=>{
+    try{return [row.id,{url:await getSharedSessionImageUrl(row.storage_path!),expiresAt:Date.now()+14*60_000}] as const}
+    finally{signingImagesRef.current.delete(row.id)}
+   }))
+   const next={...chatImageUrlMapRef.current,...Object.fromEntries(pairs)}
+   chatImageUrlMapRef.current=next
+   setChatImageUrlMap(next)
+  }catch{/* retry on the next realtime refresh */}
+ },[])
 
  const current=participants.find(p=>p.user_id===userId)
  const seated=useMemo(()=>new Set(seats.map(s=>s.participant.user_id)),[seats])
@@ -200,8 +209,9 @@ export function SessionRoom({id}:{id:string}){
    listMyPendingSharedSessionInvitations(),getCloudCurrentUser(),listSharedSessionPauseRequests(id),listSharedSessionTimeChangeRequests(id),listSharedSessionEvents(id)
   ])
   setSnapshot(s);setParticipants(p);setGoals(g);setMessages(c);setSeatRequests(r);setSeats(ss);setInvitations(inv);setUserId(u);setPauseRequests(pauses);setTimeRequests(times);setEvents(ev)
+  void signChatImages(c)
   setConnected(true);setError(null)
- },[id])
+ },[id,signChatImages])
  useEffect(()=>{
   let alive=true;setLoading(true)
   joinSharedStudySession(id).then(()=>refresh()).catch(e=>{if(alive)setError(e instanceof Error?e.message:'SESSION_LOAD_FAILED')}).finally(()=>{if(alive)setLoading(false)})
@@ -325,7 +335,7 @@ export function SessionRoom({id}:{id:string}){
   {panelOpen&&panel!=='board'?<div className="fixed inset-x-3 bottom-24 top-24 z-[65] flex flex-col gap-2 overflow-hidden"><div className="flex shrink-0 justify-end"><button type="button" onClick={()=>setPanelOpen(false)} className="grid size-9 place-items-center rounded-full border border-white/10 bg-[#111333]" aria-label="Close session panel"><X className="size-4"/></button></div><div className="min-h-0 flex-1 overflow-hidden">
   {panel==='goals'?<Card className="h-full min-h-0 overflow-y-auto border-violet-400/15 bg-[#0d102b]/90 p-3"><div className="mb-3 flex items-center gap-2 font-semibold"><Target className="size-4 text-violet-300"/>{t('sessions.phase2.room.goals')}</div><div className="max-h-[calc(100%-5rem)] space-y-2 overflow-y-auto">{goals.map(g=><button key={g.id} onClick={()=>toggleGoal(g)} className="flex w-full items-center gap-2 rounded-xl bg-white/5 p-3 text-start text-sm"><span className={cn('grid size-5 place-items-center rounded-md border',g.completed?'border-cyan-400 bg-cyan-500/20 text-cyan-300':'border-white/20')}>{g.completed?<Check className="size-3.5"/>:null}</span><span className={cn(g.completed?'text-slate-500 line-through':'')}>{g.text}</span></button>)}</div><form className="mt-3 flex gap-2" onSubmit={e=>{e.preventDefault();void addGoal()}}><input value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} placeholder={t('sessions.phase2.room.goalPlaceholder')} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"/><Button disabled={!goalDraft.trim()}><Send className="size-4"/></Button></form></Card>:null}
   {panel==='history'?<Card className="h-full min-h-0 overflow-y-auto border-violet-400/15 bg-[#0d102b]/90 p-3"><div className="mb-3 flex items-center gap-2 font-semibold"><HistoryIcon/><span>سجل الجلسة</span></div><div className="space-y-2">{events.slice(0,80).reverse().map(event=><div key={event.id} className="rounded-xl border border-white/5 bg-white/[0.035] px-3 py-2 text-xs text-slate-300">{eventLabel(event)}<span className="ms-2 text-[9px] opacity-50">{format.time(new Date(event.occurred_at).getTime())}</span></div>)}</div></Card>:null}
-   {panel==='chat'?<Card className="flex h-full min-h-0 flex-col overflow-hidden border-violet-400/15 bg-[#0d102b]/90 p-3"><div className="mb-3 flex items-center gap-2 font-semibold"><MessageCircle className="size-4 text-violet-300"/><span>محادثة الجلسة</span></div><div className="min-h-0 flex-1 space-y-2 overflow-y-auto">{messages.map(m=><div key={m.id} className={cn('max-w-[85%] rounded-2xl p-2 text-sm',m.sender_id===userId?'ms-auto bg-violet-600/30':'bg-white/5')}>{m.message_type==='image'&&m.storage_path?<button type="button" onClick={()=>void openChatImage(m)} className="block"><img src={chatImageUrlMap[m.id]||''} alt="صورة في المحادثة" className="max-h-52 max-w-full rounded-xl object-contain"/><span className="mt-1 block text-xs text-cyan-200">فتح الصورة والرسم عليها</span></button>:<p>{m.content}</p>}<p className="mt-1 text-[10px] opacity-60">{format.time(new Date(m.created_at).getTime())}</p></div>)}</div><form className="mt-3 flex items-center gap-2" onSubmit={e=>{e.preventDefault();void sendChat()}}><label className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-white/10 bg-white/5" aria-label="إرفاق صورة"><ImagePlus className="size-5"/><input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={chatImageBusy} onChange={e=>{const file=e.currentTarget.files?.[0];if(file)void uploadChatImage(file);e.currentTarget.value=''}}/></label><input value={chatDraft} onChange={e=>setChatDraft(e.target.value)} placeholder={t('sessions.phase2.room.chatPlaceholder')} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"/><Button disabled={!chatDraft.trim()||chatImageBusy}><Send className="size-4"/></Button></form></Card>:null}
+   {panel==='chat'?<Card className="flex h-full min-h-0 flex-col overflow-hidden border-violet-400/15 bg-[#0d102b]/90 p-3"><div className="mb-3 flex items-center gap-2 font-semibold"><MessageCircle className="size-4 text-violet-300"/><span>محادثة الجلسة</span></div><div className="min-h-0 flex-1 space-y-2 overflow-y-auto">{messages.map(m=><div key={m.id} className={cn('max-w-[85%] rounded-2xl p-2 text-sm',m.sender_id===userId?'ms-auto bg-violet-600/30':'bg-white/5')}>{m.message_type==='image'&&m.storage_path?<button type="button" onClick={()=>void openChatImage(m)} className="block"><img src={chatImageUrlMap[m.id]?.url||''} alt="صورة في المحادثة" className="max-h-52 max-w-full rounded-xl object-contain"/><span className="mt-1 block text-xs text-cyan-200">فتح الصورة والرسم عليها</span></button>:<p>{m.content}</p>}<p className="mt-1 text-[10px] opacity-60">{format.time(new Date(m.created_at).getTime())}</p></div>)}</div><form className="mt-3 flex items-center gap-2" onSubmit={e=>{e.preventDefault();void sendChat()}}><label className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-white/10 bg-white/5" aria-label="إرفاق صورة"><ImagePlus className="size-5"/><input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={chatImageBusy} onChange={e=>{const file=e.currentTarget.files?.[0];if(file)void uploadChatImage(file);e.currentTarget.value=''}}/></label><input value={chatDraft} onChange={e=>setChatDraft(e.target.value)} placeholder={t('sessions.phase2.room.chatPlaceholder')} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"/><Button disabled={!chatDraft.trim()||chatImageBusy}><Send className="size-4"/></Button></form></Card>:null}
   {panel==='notes'?<Card className="h-full min-h-0 overflow-y-auto border-violet-400/15 bg-[#0d102b]/90 p-3"><div className="mb-3 flex items-center gap-2 font-semibold"><BookOpen className="size-4 text-violet-300"/>{t('sessions.phase2.room.notes')}</div><Textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder={t('sessions.phase2.room.notePlaceholder')} className="min-h-28"/><Button className="mt-2" onClick={async()=>{if(!userId||!noteDraft.trim())return;try{const {addSharedSessionNote}=await import('./use-sessions');await addSharedSessionNote(id,userId,noteDraft.trim());setNoteDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'NOTE_SAVE_FAILED')}}}>{t('sessions.phase2.room.send')}</Button></Card>:null}
   </div>
   </div>:null}
