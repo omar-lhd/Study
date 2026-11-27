@@ -10,7 +10,7 @@ type AgoraTrack = {
   setMuted?:(muted:boolean)=>Promise<void>
   setVolume?:(volume:number)=>void
 }
-type AgoraRemoteUser = { uid:string|number; audioTrack?:AgoraTrack }
+type AgoraRemoteUser = { uid:string|number; hasAudio?:boolean; audioTrack?:AgoraTrack }
 type AgoraClient = {
   remoteUsers:AgoraRemoteUser[]
   join:(appId:string,channel:string,token:string,uid:number)=>Promise<unknown>
@@ -64,6 +64,7 @@ export function AgoraAudio({
   sessionId:string
   userId:string|null
   participants:LiveSessionParticipant[]
+  audioAvailable:boolean
   canPublish:boolean
   micEnabled:boolean
   mutedAll:boolean
@@ -91,6 +92,7 @@ export function AgoraAudio({
   publishDesiredRef.current=canPublish&&micEnabled
 
   useEffect(()=>{
+    if(!userId||!audioAvailable){onStatus?.('disconnected');return}
     let disposed=false
     onStatus?.('connecting')
     void (async()=>{
@@ -137,7 +139,7 @@ export function AgoraAudio({
         setJoined(true)
         // A participant may have published before this client finished joining.
         // Agora's user-published event is not guaranteed to replay for existing users.
-        await Promise.all(client.remoteUsers.filter(user=>user.audioTrack).map(user=>subscribeAudio(user)))
+        await Promise.all(client.remoteUsers.filter(user=>user.hasAudio).map(user=>subscribeAudio(user)))
         onStatus?.('connected')
       }catch(error){
         if(!disposed){setJoined(false);onStatus?.('error',error instanceof Error?error.message:'AGORA_CONNECT_FAILED')}
@@ -155,7 +157,7 @@ export function AgoraAudio({
       if(track){track.close?.()}
       if(client)void client.leave().catch(()=>{})
     }
-  },[sessionId,onStatus])
+  },[sessionId,onStatus,userId,audioAvailable])
 
   useEffect(()=>{
     let canceled=false
