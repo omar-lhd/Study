@@ -77,9 +77,18 @@ export function SessionsOverview(){
  useEffect(()=>{
   let alive=true
   setLoading(true);setError(null)
-  Promise.all([listMySharedSessions(),listMyStudyCommunities()]).then(([sessions,communities])=>{
+  Promise.all([listMySharedSessions(),listMyStudyCommunities()]).then(async([sessions,communities])=>{
+   const groupSessions=await Promise.all(communities.map(community=>listVisibleSharedStudySessions(community.id).catch(()=>[])))
    if(!alive)return
-   setRows(sessions as Row[]);setCommunityCount(communities.length)
+   const merged=new Map<string,Row>()
+   for(const row of sessions as Row[])merged.set(row.id,row)
+   for(const communityRows of groupSessions)for(const row of communityRows){
+    if(row.access_type!=='group')continue
+    const existing=merged.get(row.id)
+    merged.set(row.id,{...row,created_by:row.created_by,group_id:row.group_id,participant_count:existing?.participant_count??0})
+   }
+   setRows([...merged.values()].sort((a,b)=>((a.starts_at??a.created_at).localeCompare(b.starts_at??b.created_at))))
+   setCommunityCount(communities.length)
   }).catch(e=>{if(alive)setError(e instanceof Error?e.message:'SESSION_LOAD_FAILED')})
    .finally(()=>{if(alive)setLoading(false)})
   return()=>{alive=false}
