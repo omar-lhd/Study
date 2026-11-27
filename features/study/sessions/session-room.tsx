@@ -188,7 +188,7 @@ export function SessionRoom({id}:{id:string}){
   if(!userId)return
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){toast.error('نوع أو حجم الصورة غير مسموح');return}
   setChatImageBusy(true)
-  try{await sendSharedSessionImage(id,userId,file,crypto.randomUUID());await refresh();toast.success('تم إرسال الصورة')}
+  try{await sendSharedSessionImage(id,userId,file,crypto.randomUUID());const next=await listSharedSessionChat(id);setMessages(next);void signChatImages(next);toast.success('تم إرسال الصورة')}
   catch(e){toast.error(e instanceof Error?e.message:'SESSION_IMAGE_UPLOAD_FAILED')}
   finally{setChatImageBusy(false)}
  }
@@ -283,7 +283,8 @@ export function SessionRoom({id}:{id:string}){
    void completeSharedSessionResume(id).then(()=>refresh()).catch(error=>toast.error(error instanceof Error?error.message:'SESSION_RESUME_FAILED'))
   }
  },[snapshot?.status,snapshot?.resume_at,now,id,playSessionTone,refresh])
- const realtimeRefresh=useCallback(()=>{void refresh().catch(()=>setConnected(false))},[refresh])
+ const realtimeTimerRef=useRef<number|null>(null)
+ const realtimeRefresh=useCallback(()=>{if(realtimeTimerRef.current!==null)window.clearTimeout(realtimeTimerRef.current);realtimeTimerRef.current=window.setTimeout(()=>{realtimeTimerRef.current=null;void refresh().catch(()=>setConnected(false))},300)},[refresh])
  useEffect(()=>{if(current?.attendance_state!=='present')return;return subscribeSharedSessionRealtime(id,realtimeRefresh)},[id,current?.attendance_state,realtimeRefresh])
  useEffect(()=>{if(pauseRequests.length>0)setShowPauseVote(true);else setShowPauseVote(false)},[pauseRequests.length])
  useEffect(()=>{if(timeRequests.length>0)setShowTimerAdjust(true)},[timeRequests.length])
@@ -359,7 +360,7 @@ export function SessionRoom({id}:{id:string}){
    }
   }catch(e){toast.error(e instanceof Error?e.message:'SESSION_ACTION_FAILED')}
  }
- async function sendChat(){const value=chatDraft.trim();if(!value||!userId)return;try{await sendSharedSessionChat(id,userId,value,crypto.randomUUID());setChatDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'CHAT_SEND_FAILED')}}
+ async function sendChat(){const value=chatDraft.trim();if(!value||!userId)return;try{await sendSharedSessionChat(id,userId,value,crypto.randomUUID());setChatDraft('');const next=await listSharedSessionChat(id);setMessages(next);void signChatImages(next)}catch(e){toast.error(e instanceof Error?e.message:'CHAT_SEND_FAILED')}}
  async function addGoal(){const value=goalDraft.trim();if(!value||!userId)return;try{await addSharedSessionGoal(id,value,userId);setGoalDraft('');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'GOAL_ADD_FAILED')}}
  async function toggleGoal(goal:LiveSessionGoal){try{await updateSharedSessionGoal(goal.id,!goal.completed,userId||'');await refresh()}catch(e){toast.error(e instanceof Error?e.message:'GOAL_UPDATE_FAILED')}}
  async function requestSeat(target:LiveSessionParticipant){try{await requestSharedSpeakerSeat(id,target.user_id);toast.success(t('sessions.phase2.room.seatRequestSent'));setShowRoster(false);await refresh()}catch(e){toast.error(e instanceof Error?e.message:'SEAT_REQUEST_FAILED')}}
