@@ -59,7 +59,7 @@ function agoraUid(uuid:string):number{
 }
 
 export function AgoraAudio({
-  sessionId,userId,participants,canPublish,micEnabled,mutedAll,mutedUserIds,volumes,onStatus
+  sessionId,userId,participants,audioAvailable,canPublish,micEnabled,mutedAll,mutedUserIds,volumes,onStatus
 }:{
   sessionId:string
   userId:string|null
