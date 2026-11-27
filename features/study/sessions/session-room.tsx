@@ -26,6 +26,11 @@ type ChatMessage={id:string;sender_id:string;content:string;client_event_id:stri
 type SeatRequest={id:string;requester_id:string;target_participant_id:string;status:string;expires_at:string;created_at:string}
 type Seat={seat_number:number;participant_id:string;participant:{user_id:string;profiles:{display_name:string;avatar_url:string|null}|null}}
 type Invitation={invitation_id:string;session_id:string;title:string;session_type:string;subject:string|null;starts_at:string|null;planned_duration_seconds:number;inviter_id:string;inviter_name:string|null;created_at:string}
+function participantPersonalStatus(participant:unknown):'coffee'|'restroom'|'quick_talk'|null{
+ if(!participant||typeof participant!=='object')return null
+ const status=(participant as {personal_status?:unknown}).personal_status
+ return status==='coffee'||status==='restroom'||status==='quick_talk'?status:null
+}
 
 function SessionImageDoodleEditor({imageUrl,onClose,onSend}:{imageUrl:string;onClose:()=>void;onSend:(file:File)=>Promise<void>}){
  const canvasRef=useRef<HTMLCanvasElement|null>(null)
@@ -386,8 +391,8 @@ export function SessionRoom({id}:{id:string}){
      </div>
     </div>
    </Card>
-   {current?.personal_status?<Card className="study-room-personal-status border-cyan-300/30 bg-[#0b2040]/95 p-2 shadow-lg">
-    <div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-cyan-100">{current.personal_status==='coffee'?<Coffee className="size-5"/>:current.personal_status==='restroom'?<Toilet className="size-5"/>:<MessagesSquare className="size-5"/>}<span>انت دلوقتي مشغول، خلصت؟</span></span><Button size="sm" variant="outline" onClick={()=>void changePersonalStatus(null)}>إيقاف</Button></div>
+   {participantPersonalStatus(current)?<Card className="study-room-personal-status border-cyan-300/30 bg-[#0b2040]/95 p-2 shadow-lg">
+    <div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-cyan-100">{participantPersonalStatus(current)==='coffee'?<Coffee className="size-5"/>:participantPersonalStatus(current)==='restroom'?<Toilet className="size-5"/>:<MessagesSquare className="size-5"/>}<span>انت دلوقتي مشغول، خلصت؟</span></span><Button size="sm" variant="outline" onClick={()=>void changePersonalStatus(null)}>إيقاف</Button></div>
    </Card>:null}
 
    <section className="study-room-timer relative flex min-h-0 cursor-pointer items-center justify-center overflow-hidden py-1" role="button" tabIndex={0} aria-label="Adjust session timer" onClick={()=>setShowTimerAdjust(true)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setShowTimerAdjust(true)}}}>
@@ -424,9 +429,9 @@ export function SessionRoom({id}:{id:string}){
     <button type="button" onClick={()=>setShowRoster(true)} disabled={listeners.length===0} className="mt-2 flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-sm font-semibold text-white shadow-[0_8px_28px_rgba(70,72,255,.28)] disabled:opacity-45"><Headphones className="size-5"/>{t('sessions.phase2.room.requestSeat')}</button>
    </Card>
    <div className="study-room-personal-actions flex shrink-0 items-center justify-center gap-2" aria-label="حالة شخصية مؤقتة">
-    <button type="button" onClick={()=>void changePersonalStatus(current?.personal_status==='coffee'?null:'coffee')} aria-pressed={current?.personal_status==='coffee'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='coffee'?'border-amber-300 bg-amber-400/20 text-amber-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="استراحة قهوة"><Coffee className="size-4"/></button>
-    <button type="button" onClick={()=>void changePersonalStatus(current?.personal_status==='restroom'?null:'restroom')} aria-pressed={current?.personal_status==='restroom'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='restroom'?'border-cyan-300 bg-cyan-400/20 text-cyan-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="دورة المياه"><Toilet className="size-4"/></button>
-    <button type="button" onClick={()=>void changePersonalStatus(current?.personal_status==='quick_talk'?null:'quick_talk')} aria-pressed={current?.personal_status==='quick_talk'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='quick_talk'?'border-violet-300 bg-violet-400/20 text-violet-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="محادثة قصيرة"><MessagesSquare className="size-4"/></button>
+    <button type="button" onClick={()=>void changePersonalStatus(participantPersonalStatus(current)==='coffee'?null:'coffee')} aria-pressed={current?.personal_status==='coffee'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='coffee'?'border-amber-300 bg-amber-400/20 text-amber-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="استراحة قهوة"><Coffee className="size-4"/></button>
+    <button type="button" onClick={()=>void changePersonalStatus(participantPersonalStatus(current)==='restroom'?null:'restroom')} aria-pressed={current?.personal_status==='restroom'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='restroom'?'border-cyan-300 bg-cyan-400/20 text-cyan-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="دورة المياه"><Toilet className="size-4"/></button>
+    <button type="button" onClick={()=>void changePersonalStatus(participantPersonalStatus(current)==='quick_talk'?null:'quick_talk')} aria-pressed={current?.personal_status==='quick_talk'} className={cn('grid size-9 place-items-center rounded-full border transition',current?.personal_status==='quick_talk'?'border-violet-300 bg-violet-400/20 text-violet-200':'border-white/10 bg-white/5 text-slate-200')} aria-label="محادثة قصيرة"><MessagesSquare className="size-4"/></button>
    </div>
   <div className="study-room-tools grid shrink-0 grid-cols-4 gap-1.5">
    {(['goals','history','notes','board'] as const).map(p=><button key={p} onClick={()=>{setPanel(p);setPanelOpen(true)}} className={cn('flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-1 text-[10px] font-medium',panel===p?'border-violet-400/40 bg-violet-500/15 text-violet-200':'border-white/10 bg-[#10122d]/80 text-slate-300')}><span className="text-violet-300">{p==='goals'?<Target/>:p==='history'?<HistoryIcon/>:p==='notes'?<BookOpen/>:<Grid3X3/>}</span>{p==='history'?'سجل الجلسة':t(('sessions.phase2.room.'+p) as MessageKey)}</button>)}
