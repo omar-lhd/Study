@@ -235,12 +235,25 @@ export async function getCloudCurrentUser() {
 }
 
 export async function listMySharedSessions() {
-  return cloudRest<Array<{
+  const rows=await cloudRest<Array<{
     id:string;title:string;subject:string|null;subject_color:string|null;session_type:SharedSessionSnapshot['session_type'];
     status:SharedSessionSnapshot['status'];access_type:SharedSessionSnapshot['access_type'];starts_at:string|null;
     started_at:string|null;ended_at:string|null;planned_duration_seconds:number;created_at:string;host_id:string;
     created_by:string;group_id:string;
   }>>('study_sessions?select=id,title,subject,subject_color,session_type,status,access_type,starts_at,started_at,ended_at,planned_duration_seconds,created_at,host_id,created_by,group_id&order=starts_at.asc.nullslast,created_at.desc')
+  if(!rows.length)return []
+  const ids=rows.map(row=>row.id)
+  const participants=await cloudRest<Array<{session_id:string;user_id:string;attendance_state:string}>>(
+    'study_session_participants?session_id=in.('+ids.map(encodeURIComponent).join(',')+')&select=session_id,user_id,attendance_state'
+  )
+  const counts=new Map<string,Set<string>>()
+  for(const row of participants){
+    if(row.attendance_state!=='present')continue
+    const set=counts.get(row.session_id)??new Set<string>()
+    set.add(row.user_id)
+    counts.set(row.session_id,set)
+  }
+  return rows.map(row=>({...row,participant_count:counts.get(row.id)?.size??0}))
 }
 
 export async function getSharedSessionSummary(sessionId:string) {
